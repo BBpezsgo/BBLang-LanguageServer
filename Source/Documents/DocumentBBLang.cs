@@ -156,19 +156,9 @@ sealed class DocumentBBLang : DocumentBase
         else if (Content is not null)
         {
             TokenizerResult tokens = Tokenizer.Tokenize(Content, diagnostics, compilerSettings.PreprocessorVariables, Uri, compilerSettings.TokenizerSettings);
-            if (!diagnostics.HasErrors)
-            {
-                try
-                {
-                    ParserResult ast = Parser.Parse(tokens.Tokens, Uri, diagnostics);
-                    Tokens = !ast.Tokens.IsDefault ? ast.Tokens : !ast.Tokens.IsDefault ? Tokens : ImmutableArray<Token>.Empty;
-                    AST = ast.IsNotEmpty ? ast : AST;
-                }
-                catch (SyntaxException ex)
-                {
-                    diagnostics.Add(ex.ToDiagnostic());
-                }
-            }
+            ParserResult ast = Parser.Parse(tokens.Tokens, Uri, diagnostics);
+            Tokens = !ast.Tokens.IsDefault ? ast.Tokens : !ast.Tokens.IsDefault ? Tokens : ImmutableArray<Token>.Empty;
+            AST = ast.IsNotEmpty ? ast : AST;
             compiledFiles = new() { Uri };
         }
         else
