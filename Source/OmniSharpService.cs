@@ -66,11 +66,11 @@ sealed class OmniSharpService
            .WithHandler<ReferencesHandler>()
            .WithHandler<SignatureHelpHandler>();
 
-        options.OnInitialize((server, e, cancellationToken) =>
+        options.OnInitialize((server, request, cancellationToken) =>
         {
-            if (e.Capabilities?.TextDocument != null)
+            if (request.Capabilities?.TextDocument != null)
             {
-                e.Capabilities.TextDocument.SemanticTokens = new SemanticTokensCapability()
+                request.Capabilities.TextDocument.SemanticTokens = new SemanticTokensCapability()
                 {
                     TokenTypes = new Container<SemanticTokenType>(SemanticTokenType.Defaults),
                     TokenModifiers = new Container<SemanticTokenModifier>(SemanticTokenModifier.Defaults),

@@ -5,11 +5,11 @@ namespace LanguageServer.Handlers;
 
 sealed class DidChangeConfigurationHandler : IDidChangeConfigurationHandler
 {
-    Task<Unit> IRequestHandler<DidChangeConfigurationParams, Unit>.Handle(DidChangeConfigurationParams e, CancellationToken cancellationToken) => Task.Run(() =>
+    Task<Unit> IRequestHandler<DidChangeConfigurationParams, Unit>.Handle(DidChangeConfigurationParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Log($"DidChangeConfigurationHandler.Handle({e})");
+        Logger.Log($"DidChangeConfigurationHandler.Handle({request})");
 
-        OmniSharpService.Instance?.OnConfigChanged(e);
+        OmniSharpService.Instance?.OnConfigChanged(request);
 
         return Unit.Value;
     });

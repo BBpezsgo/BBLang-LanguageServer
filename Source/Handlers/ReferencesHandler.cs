@@ -4,21 +4,20 @@ namespace LanguageServer.Handlers;
 
 sealed class ReferencesHandler : IReferencesHandler
 {
-    Task<LocationContainer?> IRequestHandler<ReferenceParams, LocationContainer?>.Handle(ReferenceParams e, CancellationToken cancellationToken) => Task.Run(() =>
+    Task<LocationContainer?> IRequestHandler<ReferenceParams, LocationContainer?>.Handle(ReferenceParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Log($"ReferencesHandler.Handle({e})");
+        Logger.Log($"ReferencesHandler.Handle({request})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 
         try
         {
-            Location[]? result = OmniSharpService.Instance.Documents.Get(e.TextDocument)?.References(e);
-            if (result == null) return null;
-            return new LocationContainer(result);
+            IEnumerable<Location>? result = OmniSharpService.Instance.Documents.Get(request.TextDocument)?.References(request);
+            return result is null ? null : new LocationContainer(result);
         }
         catch (ServiceException error)
         {
-            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"ServiceException: {error.Message}");
+            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
             return null;
         }
     });

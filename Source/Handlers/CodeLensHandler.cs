@@ -4,20 +4,19 @@ namespace LanguageServer.Handlers;
 
 sealed class CodeLensHandler : ICodeLensHandler
 {
-    Task<CodeLensContainer?> IRequestHandler<CodeLensParams, CodeLensContainer?>.Handle(CodeLensParams e, CancellationToken cancellationToken) => Task.Run(() =>
+    Task<CodeLensContainer?> IRequestHandler<CodeLensParams, CodeLensContainer?>.Handle(CodeLensParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Log($"CodeLensHandler.Handle({e})");
+        Logger.Log($"CodeLensHandler.Handle({request})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 
         try
         {
-            CodeLens[]? result = OmniSharpService.Instance.Documents.Get(e.TextDocument)?.CodeLens(e);
-            return new CodeLensContainer(result ?? Array.Empty<CodeLens>());
+            return new CodeLensContainer(OmniSharpService.Instance.Documents.Get(request.TextDocument)?.CodeLens(request) ?? Enumerable.Empty<CodeLens>());
         }
         catch (ServiceException error)
         {
-            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"ServiceException: {error.Message}");
+            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
             return null;
         }
     });

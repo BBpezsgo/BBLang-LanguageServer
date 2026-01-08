@@ -100,104 +100,112 @@ sealed class DocumentBBLang : DocumentBase
     {
         Logger.Log($"Validate()\n {string.Join("\n ", Documents.Select(v => v.Uri))}");
 
-        DiagnosticsCollection diagnostics = new();
-
-        Configuration config = Configuration.Parse([
-            ..Documents.SelectMany(v => ConfigurationManager.Search(v.Uri, Documents)).DistinctBy(v => v.Uri)
-        ], diagnostics);
-
-        diagnostics.Clear();
-
-        CompilerSettings compilerSettings = new CompilerSettings(CodeGeneratorForMain.DefaultCompilerSettings)
+        try
         {
-            Optimizations = OptimizationSettings.None,
-            CompileEverything = true,
-            PreprocessorVariables = PreprocessorVariables.Normal,
-            SourceProviders = [
-                Documents,
+            DiagnosticsCollection diagnostics = new();
+
+            Configuration config = Configuration.Parse([
+                ..Documents.SelectMany(v => ConfigurationManager.Search(v.Uri, Documents)).DistinctBy(v => v.Uri)
+            ], diagnostics);
+
+            diagnostics.Clear();
+
+            CompilerSettings compilerSettings = new CompilerSettings(CodeGeneratorForMain.DefaultCompilerSettings)
+            {
+                Optimizations = OptimizationSettings.None,
+                CompileEverything = true,
+                PreprocessorVariables = PreprocessorVariables.Normal,
+                SourceProviders = [
+                    Documents,
                 new FileSourceProvider()
                 {
                     ExtraDirectories = config.ExtraDirectories,
                 },
             ],
-            AdditionalImports = config.AdditionalImports,
-            ExternalFunctions = config.ExternalFunctions.As<LanguageCore.Runtime.IExternalFunction>(),
-            ExternalConstants = config.ExternalConstants,
-            TokenizerSettings = new TokenizerSettings(TokenizerSettings.Default)
-            {
-                TokenizeComments = true,
-            },
-            Cache = Cache,
-        };
-        HashSet<Uri> compiledFiles;
-        if (DocumentUri.Scheme == "file")
-        {
-            CompilerResult compilerResult = CompilerResult.MakeEmpty(Uri);
-            try
-            {
-                compilerResult = StatementCompiler.CompileFiles(Documents.Select(v => v.Uri.ToString()).ToArray(), compilerSettings, diagnostics);
-                if (!diagnostics.HasErrors)
+                AdditionalImports = config.AdditionalImports,
+                ExternalFunctions = config.ExternalFunctions.As<LanguageCore.Runtime.IExternalFunction>(),
+                ExternalConstants = config.ExternalConstants,
+                TokenizerSettings = new TokenizerSettings(TokenizerSettings.Default)
                 {
-                    Logger.Info($"Validation successful");
+                    TokenizeComments = true,
+                },
+                Cache = Cache,
+            };
+            HashSet<Uri> compiledFiles;
+            if (DocumentUri.Scheme == "file")
+            {
+                CompilerResult compilerResult = CompilerResult.MakeEmpty(Uri);
+                try
+                {
+                    compilerResult = StatementCompiler.CompileFiles(Documents.Select(v => v.Uri.ToString()).ToArray(), compilerSettings, diagnostics);
+                    if (!diagnostics.HasErrors)
+                    {
+                        Logger.Info($"Validation successful");
+                    }
                 }
+                catch (LanguageException languageException)
+                {
+                    diagnostics.Add(languageException.ToDiagnostic());
+                }
+
+                ParsedFile raw = compilerResult.RawTokens.FirstOrDefault(v => v.File == Uri);
+                Tokens = !raw.AST.Tokens.IsDefault ? raw.AST.Tokens : !raw.Tokens.Tokens.IsDefault ? Tokens : ImmutableArray<Token>.Empty;
+                AST = raw.AST.IsNotEmpty ? raw.AST : AST;
+                CompilerResult = compilerResult;
+
+                compiledFiles = new(compilerResult.RawTokens.Select(v => v.File));
             }
-            catch (LanguageException languageException)
+            else if (Content is not null)
             {
-                diagnostics.Add(languageException.ToDiagnostic());
+                TokenizerResult tokens = Tokenizer.Tokenize(Content, diagnostics, compilerSettings.PreprocessorVariables, Uri, compilerSettings.TokenizerSettings);
+                ParserResult ast = Parser.Parse(tokens.Tokens, Uri, diagnostics);
+                Tokens = !ast.Tokens.IsDefault ? ast.Tokens : !ast.Tokens.IsDefault ? Tokens : ImmutableArray<Token>.Empty;
+                AST = ast.IsNotEmpty ? ast : AST;
+                compiledFiles = new() { Uri };
             }
-
-            ParsedFile raw = compilerResult.RawTokens.FirstOrDefault(v => v.File == Uri);
-            Tokens = !raw.AST.Tokens.IsDefault ? raw.AST.Tokens : !raw.Tokens.Tokens.IsDefault ? Tokens : ImmutableArray<Token>.Empty;
-            AST = raw.AST.IsNotEmpty ? raw.AST : AST;
-            CompilerResult = compilerResult;
-
-            compiledFiles = new(compilerResult.RawTokens.Select(v => v.File));
-        }
-        else if (Content is not null)
-        {
-            TokenizerResult tokens = Tokenizer.Tokenize(Content, diagnostics, compilerSettings.PreprocessorVariables, Uri, compilerSettings.TokenizerSettings);
-            ParserResult ast = Parser.Parse(tokens.Tokens, Uri, diagnostics);
-            Tokens = !ast.Tokens.IsDefault ? ast.Tokens : !ast.Tokens.IsDefault ? Tokens : ImmutableArray<Token>.Empty;
-            AST = ast.IsNotEmpty ? ast : AST;
-            compiledFiles = new() { Uri };
-        }
-        else
-        {
-            compiledFiles = new();
-        }
-
-        foreach (DiagnosticWithoutContext item in diagnostics.DiagnosticsWithoutContext)
-        {
-            Logger.Error(item.ToString());
-        }
-
-        Dictionary<Uri, List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>> diagnosticsPerFile = new();
-
-        foreach (LanguageCore.Diagnostic diagnostic in diagnostics.Diagnostics)
-        {
-            if (diagnostic.File is null) continue;
-            if (!diagnosticsPerFile.TryGetValue(diagnostic.File, out List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>? container))
+            else
             {
-                container = diagnosticsPerFile[diagnostic.File] = new();
-            }
-            container.Add(diagnostic.ToOmniSharp());
-        }
-
-        foreach (var file in compiledFiles)
-        {
-            if (!diagnosticsPerFile.TryGetValue(file, out List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>? fileDiagnostics))
-            {
-                fileDiagnostics = new();
+                compiledFiles = new();
             }
 
-            int? version = null;
-            if (Documents.TryGet(file, out DocumentBase? document)) version = document.Version;
-            OmniSharpService.Instance?.Server?.PublishDiagnostics(new PublishDiagnosticsParams()
+            foreach (DiagnosticWithoutContext item in diagnostics.DiagnosticsWithoutContext)
             {
-                Uri = file,
-                Diagnostics = fileDiagnostics,
-                Version = version,
-            });
+                Logger.Error(item.ToString());
+            }
+
+            Dictionary<Uri, List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>> diagnosticsPerFile = new();
+
+            foreach (LanguageCore.Diagnostic diagnostic in diagnostics.Diagnostics)
+            {
+                if (diagnostic.File is null) continue;
+                if (!diagnosticsPerFile.TryGetValue(diagnostic.File, out List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>? container))
+                {
+                    container = diagnosticsPerFile[diagnostic.File] = new();
+                }
+                container.Add(diagnostic.ToOmniSharp());
+            }
+
+            foreach (var file in compiledFiles)
+            {
+                if (!diagnosticsPerFile.TryGetValue(file, out List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>? fileDiagnostics))
+                {
+                    fileDiagnostics = new();
+                }
+
+                int? version = null;
+                if (Documents.TryGet(file, out DocumentBase? document)) version = document.Version;
+                OmniSharpService.Instance?.Server?.PublishDiagnostics(new PublishDiagnosticsParams()
+                {
+                    Uri = file,
+                    Diagnostics = fileDiagnostics,
+                    Version = version,
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            OmniSharpService.Instance?.Server?.Window?.ShowError($"BBLang {ex.GetType().Name}: {ex.Message}");
+            throw;
         }
     }
 
@@ -409,7 +417,6 @@ sealed class DocumentBBLang : DocumentBase
         CompiledOperatorDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
         CompiledFunctionDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
         CompiledGeneralFunctionDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-        // CompiledVariable v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
         CompiledVariableConstant v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
         VariableDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
         CompiledVariableDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
@@ -708,7 +715,7 @@ sealed class DocumentBBLang : DocumentBase
                 HandleDefinitionHover(item, ref definitionHover, ref docsHover);
                 HandleTypeHovering(item, ref typeHover);
                 HandleReferenceHovering(item, ref definitionHover, ref docsHover);
-                HandleValueHovering(item, ref valueHover);
+                //HandleValueHovering(item, ref valueHover);
             }
         }
         else
@@ -1044,6 +1051,16 @@ sealed class DocumentBBLang : DocumentBase
                 }
             }
         }
+
+        return new LocationOrLocationLinks(links);
+    }
+
+    public override LocationOrLocationLinks? GotoImplementation(ImplementationParams e) => null;
+    public override LocationOrLocationLinks? GotoDeclaration(DeclarationParams e) => null;
+
+    public override LocationOrLocationLinks? GotoTypeDefinition(TypeDefinitionParams e)
+    {
+        List<LocationOrLocationLink> links = new();
 
         if ((AST, CompilerResult).GetTypeInstanceAt(Uri, e.Position.ToCool(), out TypeInstance? origin, out GeneralType? type))
         {
@@ -1398,5 +1415,68 @@ sealed class DocumentBBLang : DocumentBase
                     break;
             }
         }
+    }
+
+    public override IEnumerable<DocumentHighlight>? DocumentHighlight(DocumentHighlightParams request)
+    {
+        List<DocumentHighlight> result = new();
+
+        if (AST.GetStatementAt(request.Position.ToCool(), out Statement? statement))
+        {
+            foreach (Statement item in StatementWalker.Visit(statement))
+            {
+                Position from = Utils.GetInteractivePosition(item);
+
+                if (!from.Range.Contains(request.Position.ToCool()))
+                { continue; }
+
+                IReferenceable referenceable;
+                if (item is IReferenceable _referenceable)
+                {
+                    referenceable = _referenceable;
+                }
+                else if (item is IReferenceableTo referenceableTo)
+                {
+                    if (referenceableTo.Reference is IReferenceable _referenceable2)
+                    {
+                        referenceable = _referenceable2;
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    continue;
+                }
+
+                result.Add(new DocumentHighlight()
+                {
+                    Kind = DocumentHighlightKind.Text,
+                    Range = item.Position.ToOmniSharp(),
+                });
+
+                switch (referenceable)
+                {
+                    case IReferenceable<Expression> rs:
+                        foreach (var r in rs.References)
+                        {
+                            if (r.IsImplicit) continue;
+                            if (r.Source.File != Uri) continue;
+                            result.Add(new DocumentHighlight()
+                            {
+                                Kind = DocumentHighlightKind.Text,
+                                Range = r.Source.Position.ToOmniSharp(),
+                            });
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        return result;
     }
 }

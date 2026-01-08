@@ -77,14 +77,18 @@ abstract class DocumentBase
         LanguageId = e.TextDocument.Extension();
     }
 
-    public abstract Hover? Hover(HoverParams e);
-    public abstract CodeLens[] CodeLens(CodeLensParams e);
-    public abstract Location[] References(ReferenceParams e);
-    public abstract SignatureHelp? SignatureHelp(SignatureHelpParams e);
-    public abstract void GetSemanticTokens(SemanticTokensBuilder builder, ITextDocumentIdentifierParams e);
-    public abstract CompletionItem[] Completion(CompletionParams e);
-    public abstract LocationOrLocationLinks? GotoDefinition(DefinitionParams e);
-    public abstract SymbolInformationOrDocumentSymbol[] Symbols(DocumentSymbolParams e);
+    public abstract Hover? Hover(HoverParams request);
+    public abstract IEnumerable<DocumentHighlight>? DocumentHighlight(DocumentHighlightParams request);
+    public abstract IEnumerable<CodeLens>? CodeLens(CodeLensParams request);
+    public abstract IEnumerable<Location>? References(ReferenceParams request);
+    public abstract SignatureHelp? SignatureHelp(SignatureHelpParams request);
+    public abstract void GetSemanticTokens(SemanticTokensBuilder builder, ITextDocumentIdentifierParams request);
+    public abstract IEnumerable<CompletionItem>? Completion(CompletionParams request);
+    public abstract LocationOrLocationLinks? GotoDefinition(DefinitionParams request);
+    public abstract LocationOrLocationLinks? GotoDeclaration(DeclarationParams request);
+    public abstract LocationOrLocationLinks? GotoTypeDefinition(TypeDefinitionParams request);
+    public abstract LocationOrLocationLinks? GotoImplementation(ImplementationParams request);
+    public abstract IEnumerable<SymbolInformationOrDocumentSymbol>? Symbols(DocumentSymbolParams request);
 
     public override string ToString() => $"{Path}";
 }

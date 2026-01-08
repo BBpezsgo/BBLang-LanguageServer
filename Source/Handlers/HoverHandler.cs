@@ -4,19 +4,19 @@ namespace LanguageServer.Handlers;
 
 sealed class HoverHandler : IHoverHandler
 {
-    Task<Hover?> IRequestHandler<HoverParams, Hover?>.Handle(HoverParams e, CancellationToken cancellationToken) => Task.Run(() =>
+    Task<Hover?> IRequestHandler<HoverParams, Hover?>.Handle(HoverParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Log($"HoverHandler.Handle({e})");
+        Logger.Log($"HoverHandler.Handle({request})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 
         try
         {
-            return OmniSharpService.Instance.Documents.Get(e.TextDocument)?.Hover(e);
+            return OmniSharpService.Instance.Documents.Get(request.TextDocument)?.Hover(request);
         }
         catch (ServiceException error)
         {
-            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"ServiceException: {error.Message}");
+            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
             return null;
         }
     });

@@ -4,19 +4,19 @@ namespace LanguageServer.Handlers;
 
 sealed class DefinitionHandler : IDefinitionHandler
 {
-    Task<LocationOrLocationLinks?> IRequestHandler<DefinitionParams, LocationOrLocationLinks?>.Handle(DefinitionParams e, CancellationToken cancellationToken) => Task.Run(() =>
+    Task<LocationOrLocationLinks?> IRequestHandler<DefinitionParams, LocationOrLocationLinks?>.Handle(DefinitionParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Log($"DefinitionHandler.Handle({e})");
+        Logger.Log($"DefinitionHandler.Handle({request})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 
         try
         {
-            return OmniSharpService.Instance.Documents.Get(e.TextDocument)?.GotoDefinition(e);
+            return OmniSharpService.Instance.Documents.Get(request.TextDocument)?.GotoDefinition(request);
         }
         catch (ServiceException error)
         {
-            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"ServiceException: {error.Message}");
+            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
             return null;
         }
     });

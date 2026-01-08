@@ -4,20 +4,19 @@ namespace LanguageServer.Handlers;
 
 sealed class CompletionHandler : ICompletionHandler
 {
-    Task<CompletionList> IRequestHandler<CompletionParams, CompletionList>.Handle(CompletionParams e, CancellationToken cancellationToken) => Task.Run(() =>
+    Task<CompletionList> IRequestHandler<CompletionParams, CompletionList>.Handle(CompletionParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Log($"CompletionHandler.Handle({e})");
+        Logger.Log($"CompletionHandler.Handle({request})");
 
         if (OmniSharpService.Instance?.Server == null) return new CompletionList();
 
         try
         {
-            CompletionItem[]? result = OmniSharpService.Instance.Documents.Get(e.TextDocument)?.Completion(e);
-            return new CompletionList(result ?? Array.Empty<CompletionItem>());
+            return new CompletionList(OmniSharpService.Instance.Documents.Get(request.TextDocument)?.Completion(request) ?? Enumerable.Empty<CompletionItem>());
         }
         catch (ServiceException error)
         {
-            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"ServiceException: {error.Message}");
+            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
             return new CompletionList();
         }
     });

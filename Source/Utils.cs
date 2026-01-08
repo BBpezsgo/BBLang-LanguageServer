@@ -41,8 +41,7 @@ static class Utils
     {
         foreach (TFunction function in functions)
         {
-            if (function.File != file)
-            { continue; }
+            if (function.File != file) continue;
 
             if (GetParameterDefinitionAt(function, position, out parameter, out parameterType))
             { return true; }
@@ -104,8 +103,7 @@ static class Utils
     {
         foreach (TFunction function in functions)
         {
-            if (function.File != file)
-            { continue; }
+            if (function.File != file) continue;
 
             if (GetReturnTypeAt(function, position, out typeInstance, out generalType))
             { return true; }
@@ -157,6 +155,8 @@ static class Utils
 
         foreach (CompiledStruct @struct in compilerResult.Structs)
         {
+            if (@struct.File != file) continue;
+
             foreach (CompiledField field in @struct.Fields)
             {
                 if (((FieldDefinition)field).Type.Position.Range.Contains(position))
