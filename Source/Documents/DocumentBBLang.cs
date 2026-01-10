@@ -385,18 +385,7 @@ sealed class DocumentBBLang : DocumentBase
         _ => type.ToString()
     };
 
-    static string GetValueHover(CompiledValue value) => value.Type switch
-    {
-        RuntimeType.Null => $"{null}",
-        RuntimeType.U8 => $"{value}",
-        RuntimeType.I8 => $"{value}",
-        RuntimeType.U16 => $"{value}",
-        RuntimeType.I16 => $"{value}",
-        RuntimeType.U32 => $"{value}",
-        RuntimeType.I32 => $"{value}",
-        RuntimeType.F32 => $"{value}",
-        _ => value.ToString(),
-    };
+    static string GetValueHover(CompiledValue value) => value.ToStringValue() ?? string.Empty;
 
     static void HandleTypeHovering(Statement statement, ref string? typeHover)
     {
@@ -542,7 +531,7 @@ sealed class DocumentBBLang : DocumentBase
         builder.Append(variable.Identifier);
 
         builder.Append(" = ");
-        builder.Append(variable.Value.ToString());
+        builder.Append(variable.Value.ToStringValue());
 
         definitionHover = builder.ToString();
 
@@ -655,6 +644,44 @@ sealed class DocumentBBLang : DocumentBase
         }
 
         Range<SinglePosition> range = token.Position.Range;
+
+        {
+            foreach (IHaveAttributes function1 in
+                AST.Functions.Append(AST.Operators)
+                .Append(AST.Structs.SelectMany(v => v.Functions.CastArray<IHaveAttributes>().Append(v.GeneralFunctions).Append(v.Operators).Append(v.Constructors)))
+                .Append(AST.Structs)
+                .Append(AST.AliasDefinitions))
+            {
+                foreach (AttributeUsage attribute in function1.Attributes)
+                {
+                    if (attribute.Identifier.Position.Range.Contains(position))
+                    {
+                        string? attributeHover = attribute.Identifier.Content switch
+                        {
+                            AttributeConstants.MSILIncompatibleIdentifier => "Marks the function not compatible with MSIL, therefore it won't be optimized using the IL generator",
+                            AttributeConstants.BuiltinIdentifier => "Marks the function as built-in, so it will be used by the compiler to generate code for syntax sugars",
+                            AttributeConstants.ExposeIdentifier => "Marks the function as exposable, so it can be called from outside the interpreter",
+                            AttributeConstants.ExternalIdentifier => "Marks the function as external, as it's implementation is defined outside the interpreter",
+                            AttributeConstants.InternalType => "Marks the type as the default one for the specified kind of values",
+                            _ => null,
+                        };
+
+                        if (attributeHover is not null)
+                        {
+                            return new Hover()
+                            {
+                                Contents = new MarkedStringsOrMarkupContent(new MarkupContent()
+                                {
+                                    Kind = MarkupKind.Markdown,
+                                    Value = attributeHover,
+                                }),
+                                Range = attribute.Identifier.Position.Range.ToOmniSharp(),
+                            };
+                        }
+                    }
+                }
+            }
+        }
 
         string? typeHover = null;
         string? valueHover = null;
@@ -770,20 +797,19 @@ sealed class DocumentBBLang : DocumentBase
         else if (typeHover is not null)
         {
             if (contents.Length > 0) contents.AppendLine("---");
-            contents.AppendLine("**Type:**");
             contents.AppendLine($"```{LanguageConstants.LanguageId}");
             contents.AppendLine(typeHover);
             contents.AppendLine("```");
         }
 
-        if (valueHover is not null)
-        {
-            if (contents.Length > 0) contents.AppendLine("---");
-            contents.AppendLine("**Value:**");
-            contents.AppendLine($"```{LanguageConstants.LanguageId}");
-            contents.AppendLine(valueHover);
-            contents.AppendLine("```");
-        }
+        //if (valueHover is not null)
+        //{
+        //    if (contents.Length > 0) contents.AppendLine("---");
+        //    contents.AppendLine("**Value:**");
+        //    contents.AppendLine($"```{LanguageConstants.LanguageId}");
+        //    contents.AppendLine(valueHover);
+        //    contents.AppendLine("```");
+        //}
 
         if (docsHover is not null)
         {
