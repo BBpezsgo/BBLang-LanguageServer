@@ -213,32 +213,139 @@ sealed class DocumentBBLang : DocumentBase
     {
         List<CompletionItem> result = new();
 
-        Dictionary<string, int> functionOverloads = new();
+        Logger.Log($"Completion {(e.Context is null ? "null" : $"{e.Context.TriggerKind} {e.Context.TriggerCharacter}")}");
 
-        foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
+        SinglePosition p = e.Position.ToCool();
+
+        List<Statement> contextStatement = new();
+        foreach (Statement _statement in AST.EnumerateStatements())
         {
-            if (!function.CanUse(e.TextDocument.Uri.ToUri()))
-            { continue; }
-
-            if (functionOverloads.TryGetValue(function.Identifier.Content, out int value))
-            { functionOverloads[function.Identifier.Content] = value + 1; }
-            else
-            { functionOverloads[function.Identifier.Content] = 1; }
+            if (_statement.Position.Range.Start > p) continue;
+            if (contextStatement.Count == 0 || _statement.Position.AbsoluteRange.Start >= contextStatement[0].Position.AbsoluteRange.Start)
+            {
+                for (int i = 0; i < contextStatement.Count; i++)
+                {
+                    if (StatementWalker.Visit(contextStatement[i]).Contains(_statement)) continue;
+                    Logger.Log($"{contextStatement[i].GetType().Name} {contextStatement[i]}");
+                    contextStatement.RemoveAt(i--);
+                }
+                contextStatement.Add(_statement);
+            }
         }
 
-        foreach ((string function, int overloads) in functionOverloads)
+        foreach (var item in contextStatement)
         {
-            result.Add(new CompletionItem()
+            Logger.Log($"{item.GetType().Name} {item}");
+        }
+
+        if (contextStatement.Count > 0)
+        {
+            if (contextStatement[^1] is IdentifierExpression identifier
+                && contextStatement.Count > 1
+                && contextStatement[^2] is FieldExpression fieldExpression)
             {
-                Kind = CompletionItemKind.Function,
-                Label = function,
-                LabelDetails = new CompletionItemLabelDetails()
+                if (fieldExpression.Identifier == identifier)
                 {
-                    Description = overloads <= 1 ? null : $"{overloads} overloads",
-                },
-                InsertText = $"{function}($1)",
-                InsertTextFormat = InsertTextFormat.Snippet,
-            });
+                    if (fieldExpression.Object.CompiledType is not null)
+                    {
+                        List<GeneralType> checkTypes = new();
+
+                        {
+                            GeneralType prevType = fieldExpression.Object.CompiledType;
+                            checkTypes.Add(prevType);
+                            while (prevType.Is(out PointerType? pointerType2))
+                            {
+                                prevType = pointerType2.To;
+                                checkTypes.Add(prevType);
+                            }
+                        }
+
+                        Dictionary<string, int> functionOverloads = new();
+
+                        foreach (GeneralType prevType in checkTypes)
+                        {
+                            if (prevType is StructType structType)
+                            {
+                                foreach (var item in structType.Struct.Fields)
+                                {
+                                    result.Add(new CompletionItem()
+                                    {
+                                        Kind = CompletionItemKind.Field,
+                                        Label = item.Identifier.Content,
+                                        LabelDetails = new CompletionItemLabelDetails()
+                                        {
+                                            Description = item.Type.ToString(),
+                                        },
+                                    });
+                                }
+                            }
+
+                            foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
+                            {
+                                if (!function.CanUse(Uri)) continue;
+                                if (function.Parameters.Length <= 0) continue;
+                                if (!function.Parameters[0].IsThis) continue;
+                                if (!function.Parameters[0].Type.SameAs(prevType)) continue;
+
+                                if (!functionOverloads.TryGetValue(function.Identifier.Content, out int value)) value = 0;
+                                functionOverloads[function.Identifier.Content] = value + 1;
+                            }
+                        }
+
+                        foreach ((string function, int overloads) in functionOverloads)
+                        {
+                            result.Add(new CompletionItem()
+                            {
+                                Kind = CompletionItemKind.Function,
+                                Label = function,
+                                LabelDetails = new CompletionItemLabelDetails()
+                                {
+                                    Description = overloads <= 1 ? null : $"{overloads} overloads",
+                                },
+                                InsertText = $"{function}($1)",
+                                InsertTextFormat = InsertTextFormat.Snippet,
+                            });
+                        }
+
+                        return result.ToArray();
+                    }
+                    else
+                    {
+                        Logger.Warn($"Missing type on {fieldExpression.Object.GetType()} {fieldExpression.Object}");
+                    }
+                }
+                else
+                {
+                    Logger.Warn($"Field identifier {identifier.GetType().Name} {identifier} != {fieldExpression.Identifier.GetType()} {fieldExpression.Identifier}");
+                }
+            }
+        }
+
+        {
+            Dictionary<string, int> functionOverloads = new();
+
+            foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
+            {
+                if (!function.CanUse(Uri)) continue;
+
+                if (!functionOverloads.TryGetValue(function.Identifier.Content, out int value)) value = 0;
+                functionOverloads[function.Identifier.Content] = value + 1;
+            }
+
+            foreach ((string function, int overloads) in functionOverloads)
+            {
+                result.Add(new CompletionItem()
+                {
+                    Kind = CompletionItemKind.Function,
+                    Label = function,
+                    LabelDetails = new CompletionItemLabelDetails()
+                    {
+                        Description = overloads <= 1 ? null : $"{overloads} overloads",
+                    },
+                    InsertText = $"{function}($1)",
+                    InsertTextFormat = InsertTextFormat.Snippet,
+                });
+            }
         }
 
         foreach (CompiledStruct @struct in CompilerResult.Structs)
@@ -1286,7 +1393,7 @@ sealed class DocumentBBLang : DocumentBase
         {
             if (item is AnyCallExpression anyCall)
             {
-                if (!new Position(anyCall.Brackets).Range.Contains(position)) continue;
+                if (!new Position(anyCall.Arguments.Brackets).Range.Contains(position)) continue;
                 call = anyCall;
                 Logger.Warn($"Call found");
             }
@@ -1299,9 +1406,7 @@ sealed class DocumentBBLang : DocumentBase
                     if (!new Position(functionType.Brackets).Range.Contains(position)) continue;
                     call = new AnyCallExpression(
                         new IdentifierExpression(typeInstanceSimple.Identifier, typeInstanceSimple.File),
-                        ImmutableArray<ArgumentExpression>.Empty,
-                        ImmutableArray<Token>.Empty,
-                        functionType.Brackets,
+                        ArgumentListExpression.CreateAnonymous(functionType.Brackets, functionType.File),
                         functionType.File
                     );
                     Logger.Warn($"Converting {functionType} to {call}");
@@ -1312,9 +1417,9 @@ sealed class DocumentBBLang : DocumentBase
         if (call is not null && call.ToFunctionCall(out FunctionCallExpression? functionCall))
         {
             int? activeParameter = null;
-            for (int i = 0; i < call.Commas.Length; i++)
+            for (int i = 0; i < call.Arguments.Commas.Length; i++)
             {
-                if (position >= call.Commas[i].Position.Range.Start)
+                if (position >= call.Arguments.Commas[i].Position.Range.Start)
                 {
                     activeParameter = i;
                     break;
