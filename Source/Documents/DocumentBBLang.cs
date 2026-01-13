@@ -433,7 +433,6 @@ sealed class DocumentBBLang : DocumentBase
             builder.Append('<');
             builder.AppendJoin(", ", function.Template.Parameters);
             builder.Append('>');
-            builder.Append(Environment.NewLine);
         }
         builder.Append('(');
         for (int i = 0; i < function.Parameters.Count; i++)
