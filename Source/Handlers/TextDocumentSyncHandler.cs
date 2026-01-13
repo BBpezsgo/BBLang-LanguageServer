@@ -25,7 +25,7 @@ sealed class TextDocumentSyncHandler : TextDocumentSyncHandlerBase
 
     public override Task<Unit> Handle(DidOpenTextDocumentParams request, CancellationToken cancellationToken)
     {
-        Logger.Log($"Document opened: \"{request.TextDocument.Uri}\"");
+        Logger.Debug($"[DocSync] Opened ({request.TextDocument})");
 
         OmniSharpService.Instance?.Documents.GetOrCreate(request.TextDocument).OnOpened(request);
 
@@ -34,7 +34,7 @@ sealed class TextDocumentSyncHandler : TextDocumentSyncHandlerBase
 
     public override Task<Unit> Handle(DidChangeTextDocumentParams request, CancellationToken cancellationToken)
     {
-        Logger.Log($"Document changed: \"{request.TextDocument.Uri}\"");
+        Logger.Debug($"[DocSync] Changed ({request.TextDocument})");
 
         OmniSharpService.Instance?.Documents.GetOrCreate(request.TextDocument).OnChanged(request);
 
@@ -43,7 +43,7 @@ sealed class TextDocumentSyncHandler : TextDocumentSyncHandlerBase
 
     public override Task<Unit> Handle(DidSaveTextDocumentParams request, CancellationToken cancellationToken)
     {
-        Logger.Log($"Document saved: \"{request.TextDocument.Uri}\"");
+        Logger.Debug($"[DocSync] Saved ({request.TextDocument})");
 
         OmniSharpService.Instance?.Documents.GetOrCreate(request.TextDocument).OnSaved(request);
 
@@ -52,7 +52,7 @@ sealed class TextDocumentSyncHandler : TextDocumentSyncHandlerBase
 
     public override Task<Unit> Handle(DidCloseTextDocumentParams request, CancellationToken cancellationToken)
     {
-        Logger.Log($"Document closed: \"{request.TextDocument.Uri}\"");
+        Logger.Debug($"[DocSync] Closed ({request.TextDocument})");
 
         OmniSharpService.Instance?.Documents.Remove(request.TextDocument);
 

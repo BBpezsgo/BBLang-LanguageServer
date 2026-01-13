@@ -4,7 +4,7 @@ sealed class SemanticTokensHandler : SemanticTokensHandlerBase
 {
     protected override Task Tokenize(SemanticTokensBuilder builder, ITextDocumentIdentifierParams identifier, CancellationToken cancellationToken)
     {
-        Logger.Log($"SemanticTokensHandler.Tokenize({identifier})");
+        Logger.Debug($"[Handler] SemanticTokens ({identifier.TextDocument})");
 
         OmniSharpService.Instance?.Documents.Get(identifier.TextDocument)?.GetSemanticTokens(builder, identifier);
 

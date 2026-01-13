@@ -6,7 +6,7 @@ sealed class DeclarationHandler : IDeclarationHandler
 {
     Task<LocationOrLocationLinks?> IRequestHandler<DeclarationParams, LocationOrLocationLinks?>.Handle(DeclarationParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Log($"DeclarationHandler.Handle({request})");
+        Logger.Debug($"[Handler] Declaration ({request.TextDocument}:{request.Position.Line}:{request.Position.Character})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 

@@ -24,7 +24,7 @@ sealed class OmniSharpService
     {
         Server = await OmniSharp.Extensions.LanguageServer.Server.LanguageServer.From(Configure).ConfigureAwait(false);
 
-        Logger.Log("Server is created, logger is active");
+        Logger.Debug("Created");
 
         await Server.WaitForExit.ConfigureAwait(false);
     }
@@ -91,13 +91,13 @@ sealed class OmniSharpService
 
         options.OnInitialized((server, e, result, cancellationToken) =>
         {
-            server.Window.Log($"Initialized");
+            Logger.Debug($"Initialized");
             return Task.CompletedTask;
         });
 
         options.OnStarted((server, cancellationToken) =>
         {
-            server.Window.Log($"Started");
+            Logger.Debug($"Started");
             return Task.CompletedTask;
         });
     }

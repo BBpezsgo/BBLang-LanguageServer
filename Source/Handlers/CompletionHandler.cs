@@ -6,7 +6,7 @@ sealed class CompletionHandler : ICompletionHandler
 {
     Task<CompletionList> IRequestHandler<CompletionParams, CompletionList>.Handle(CompletionParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Log($"CompletionHandler.Handle({request})");
+        Logger.Debug($"[Handler] Completion ({request.TextDocument}:{request.Position.Line}:{request.Position.Character}) ({request.Context})");
 
         if (OmniSharpService.Instance?.Server == null) return new CompletionList();
 

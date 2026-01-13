@@ -7,7 +7,7 @@ sealed class DidChangeConfigurationHandler : IDidChangeConfigurationHandler
 {
     Task<Unit> IRequestHandler<DidChangeConfigurationParams, Unit>.Handle(DidChangeConfigurationParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Log($"DidChangeConfigurationHandler.Handle({request})");
+        Logger.Debug($"[Handler] ConfigurationChanged");
 
         OmniSharpService.Instance?.OnConfigChanged(request);
 

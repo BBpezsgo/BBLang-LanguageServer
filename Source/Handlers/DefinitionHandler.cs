@@ -6,7 +6,7 @@ sealed class DefinitionHandler : IDefinitionHandler
 {
     Task<LocationOrLocationLinks?> IRequestHandler<DefinitionParams, LocationOrLocationLinks?>.Handle(DefinitionParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Log($"DefinitionHandler.Handle({request})");
+        Logger.Debug($"[Handler] Definition ({request.TextDocument}:{request.Position.Line}:{request.Position.Character})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 

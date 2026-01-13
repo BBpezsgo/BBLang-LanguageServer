@@ -6,7 +6,7 @@ sealed class CodeLensHandler : ICodeLensHandler
 {
     Task<CodeLensContainer?> IRequestHandler<CodeLensParams, CodeLensContainer?>.Handle(CodeLensParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Log($"CodeLensHandler.Handle({request})");
+        Logger.Debug($"[Handler] CodeLens ({request.TextDocument})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 

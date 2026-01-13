@@ -36,12 +36,11 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
 
     public void Remove(TextDocumentIdentifier documentId)
     {
-        Logger.Log($"Unregister document: \"{documentId.Uri}\"");
+        Logger.Debug($"[Docs] Unregister ({documentId})");
         for (int i = _documents.Count - 1; i >= 0; i--)
         {
             if (_documents[i].Uri == documentId.Uri)
             {
-                Logger.Log($"Document unregistered: \"{documentId.Uri}\"");
                 _documents.RemoveAt(i);
             }
         }
@@ -55,7 +54,6 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
             {
                 if (_documents[i].Uri == _documents[j].Uri)
                 {
-                    Logger.Log($"Unregister duplicated document: \"{_documents[i].Uri}\"");
                     _documents.RemoveAt(i);
                 }
             }
@@ -73,7 +71,7 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
         if (TryGet(documentId.Uri, out DocumentBase? document))
         { return document; }
 
-        Logger.Log($"Register document: \"{documentId.Uri}\"");
+        Logger.Debug($"[Docs] Register ({documentId})");
 
         if (documentId.Uri.Scheme == "file")
         {
@@ -84,25 +82,12 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
                 { throw new ServiceException($"File not found: \"{path}\""); }
                 content = System.IO.File.ReadAllText(path);
             }
-
-            string extension = documentId.Extension();
-
-            Logger.Log($"Document registered: \"{documentId.Uri}\"");
-            document = GenerateDocument(documentId.Uri, content, extension, this);
-            _documents.Add(document);
-
-            return document;
         }
-        else
-        {
-            string extension = documentId.Extension();
 
-            Logger.Log($"Document registered: \"{documentId.Uri}\"");
-            document = GenerateDocument(documentId.Uri, content, extension, this);
-            _documents.Add(document);
+        document = GenerateDocument(documentId.Uri, content, documentId.Extension(), this);
+        _documents.Add(document);
 
-            return document;
-        }
+        return document;
     }
 
     public IEnumerable<Uri> GetQuery(string requestedFile, Uri? currentFile)
@@ -131,12 +116,12 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
                 if (document.Uri != query) continue;
                 if (document.Content is null)
                 {
-                    Logger.Log($"[BBLang Compiler] Document provided by client (no content) ({document.DocumentUri})");
+                    Logger.Debug($"[Compiler] Document provided by client (no content) ({document.DocumentUri})");
                     return SourceProviderResultSync.Error(query, "Document not loaded");
                 }
                 else
                 {
-                    Logger.Log($"[BBLang Compiler] Document provided by client (size: {document.Content.Length} bytes) ({document.DocumentUri})");
+                    Logger.Debug($"[Compiler] Document provided by client (size: {document.Content.Length} bytes) ({document.DocumentUri})");
                     return SourceProviderResultSync.Success(query, document.Content);
                 }
             }

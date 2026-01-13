@@ -29,7 +29,7 @@ abstract class DocumentBase
 
     public virtual void OnOpened(DidOpenTextDocumentParams e)
     {
-        Logger.Log($"Document buffer updated ({e.TextDocument.Text.Length}): \"{e.TextDocument}\"");
+        Logger.Debug($"[DocBuffer] Updated ({e.TextDocument}) ({e.TextDocument.Text.Length})");
         Content = e.TextDocument.Text;
 
         DocumentUri = e.TextDocument.Uri;
@@ -43,11 +43,11 @@ abstract class DocumentBase
         {
             if (change.Range is not null)
             {
-                Logger.Log($"Document buffer updated at {change.Range} to \"{change.Text.Length}\" (\"{e.TextDocument}\")");
+                Logger.Debug($"[DocBuffer] Updated ({e.TextDocument}) ({change.Range}, {change.Text.Length})");
             }
             else
             {
-                Logger.Log($"Document buffer updated ({change.Text.Length}) (\"{e.TextDocument}\")");
+                Logger.Debug($"[DocBuffer] Updated ({e.TextDocument}) ({change.Text.Length})");
                 Content = change.Text;
             }
         }
@@ -56,7 +56,7 @@ abstract class DocumentBase
 
         if (text != null)
         {
-            Logger.Log($"Document buffer updated ({text.Length}): \"{e.TextDocument}\"");
+            Logger.Debug($"[DocBuffer] Updated ({e.TextDocument}) ({text.Length})");
             Content = text;
         }
 
@@ -69,7 +69,7 @@ abstract class DocumentBase
     {
         if (e.Text != null)
         {
-            Logger.Log($"Document buffer updated ({e.Text.Length}): \"{e.TextDocument}\"");
+            Logger.Debug($"[DocBuffer] Updated ({e.TextDocument}) ({e.Text.Length})");
             Content = e.Text;
         }
 

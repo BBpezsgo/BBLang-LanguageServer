@@ -6,7 +6,7 @@ sealed class DocumentSymbolHandler : IDocumentSymbolHandler
 {
     Task<SymbolInformationOrDocumentSymbolContainer?> IRequestHandler<DocumentSymbolParams, SymbolInformationOrDocumentSymbolContainer?>.Handle(DocumentSymbolParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Log($"DocumentSymbolHandler.Handle({request})");
+        Logger.Debug($"[Handler] DocumentSymbol ({request.TextDocument})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 

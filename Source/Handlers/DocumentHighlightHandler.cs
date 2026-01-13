@@ -4,9 +4,9 @@ namespace LanguageServer.Handlers;
 
 sealed class HoverHandlere : IDocumentHighlightHandler
 {
-    public Task<DocumentHighlightContainer?> Handle(DocumentHighlightParams request, CancellationToken cancellationToken) => Task.Run(()=>
+    public Task<DocumentHighlightContainer?> Handle(DocumentHighlightParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Log($"DocumentHighlightHandler.Handle({request})");
+        Logger.Debug($"[Handler] DocumentHighlight ({request.TextDocument}:{request.Position.Line}:{request.Position.Character})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 
