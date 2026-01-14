@@ -6,7 +6,7 @@ sealed class TypeDefinitionHandler : ITypeDefinitionHandler
 {
     Task<LocationOrLocationLinks?> IRequestHandler<TypeDefinitionParams, LocationOrLocationLinks?>.Handle(TypeDefinitionParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Debug($"[Handler] TypeDefinition ({request.TextDocument}:{request.Position.Line}:{request.Position.Character})");
+        Logger.Debug($"[Handler] TypeDefinition ({request.TextDocument}:{request.Position.ToStringMin()})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 

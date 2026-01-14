@@ -48,30 +48,46 @@ sealed class DocumentBBLang : DocumentBase
 
     bool GetCommentDocumentation<TDefinition>(TDefinition definition, [NotNullWhen(true)] out string? result)
         where TDefinition : IPositioned, IInFile
-        => GetCommentDocumentation(definition.Position.Range.Start, definition.File, out result);
+    {
+        if (definition is IHaveAttributes withAttributes)
+        {
+            return GetCommentDocumentation(definition.Position.Union(withAttributes.Attributes).Range.Start, definition.File, out result);
+        }
+        else
+        {
+            return GetCommentDocumentation(definition.Position.Range.Start, definition.File, out result);
+        }
+    }
 
     bool GetCommentDocumentation(SinglePosition position, Uri? file, [NotNullWhen(true)] out string? result)
     {
         result = null;
 
-        if (file is null)
-        { return false; }
+        if (file is null) return false;
 
         ImmutableArray<Token> tokens;
 
-        if (!Documents.TryGet(file, out DocumentBase? document) ||
-            document is not DocumentBBLang documentBBLang)
-        {
-            ParsedFile f = CompilerResult.RawTokens.FirstOrDefault(v => v.File == file);
-            if (f.File is null) return false;
-            tokens = f.Tokens.Tokens;
-        }
-        else
+        if (Documents.TryGet(file, out DocumentBase? document) &&
+            document is DocumentBBLang documentBBLang)
         {
             tokens = documentBBLang.Tokens;
         }
+        else
+        {
+            ParsedFile f = CompilerResult.RawTokens.FirstOrDefault(v => v.File == file);
+            if (f.File is null)
+            {
+                Logger.Warn($"Couldn't get comment documentation for {file}:{position.ToStringMin()} (file not found)");
+                return false;
+            }
+            tokens = f.Tokens.Tokens;
+        }
 
-        if (tokens.IsDefault) return false;
+        if (tokens.IsDefault)
+        {
+            Logger.Warn($"Couldn't get comment documentation for {file}:{position.ToStringMin()} (file not tokenized)");
+            return false;
+        }
 
         for (int i = tokens.Length - 1; i >= 0; i--)
         {
@@ -103,6 +119,7 @@ sealed class DocumentBBLang : DocumentBase
             break;
         }
 
+        Logger.Warn($"Couldn't get comment documentation for {file}:{position.ToStringMin()} (no comments found)");
         return false;
     }
 
@@ -328,12 +345,12 @@ sealed class DocumentBBLang : DocumentBase
                     }
                     else
                     {
-                        Logger.Warn($"Missing type on {fieldExpression.Object.GetType()} {fieldExpression.Object}");
+                        Logger.Warn($"Missing type on {fieldExpression.Object.GetType().Name} {fieldExpression.Object}");
                     }
                 }
                 else
                 {
-                    Logger.Warn($"Field identifier {identifier.GetType().Name} {identifier} != {fieldExpression.Identifier.GetType()} {fieldExpression.Identifier}");
+                    Logger.Warn($"Field identifier {identifier.GetType().Name} {identifier} != {fieldExpression.Identifier.GetType().Name} {fieldExpression.Identifier}");
                 }
             }
         }
@@ -799,7 +816,7 @@ sealed class DocumentBBLang : DocumentBase
 
         if (token == null)
         {
-            Logger.Warn($"No token at {e.Position.ToCool().ToStringMin()} ({Tokens.Length})");
+            Logger.Warn($"No token at {e.Position.ToStringMin()} ({Tokens.Length})");
             return null;
         }
 

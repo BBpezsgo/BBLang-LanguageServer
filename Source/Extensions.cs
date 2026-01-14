@@ -77,4 +77,6 @@ static class Extensions
         Line = self.Line,
         Character = self.Character,
     };
+
+    public static string ToStringMin(this OmniSharpPosition self) => self.ToCool().ToStringMin();
 }

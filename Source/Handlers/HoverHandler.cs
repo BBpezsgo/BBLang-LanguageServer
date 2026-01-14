@@ -6,7 +6,7 @@ sealed class HoverHandler : IHoverHandler
 {
     Task<Hover?> IRequestHandler<HoverParams, Hover?>.Handle(HoverParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Debug($"[Handler] Hover ({request.TextDocument}:{request.Position.Line}:{request.Position.Character})");
+        Logger.Debug($"[Handler] Hover ({request.TextDocument}:{request.Position.ToStringMin()})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 

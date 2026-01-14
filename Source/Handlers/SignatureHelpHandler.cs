@@ -4,7 +4,7 @@ sealed class SignatureHelpHandler : ISignatureHelpHandler
 {
     public Task<SignatureHelp?> Handle(SignatureHelpParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Debug($"[Handler] SignatureHelp ({request.TextDocument}:{request.Position.Line}:{request.Position.Character}) ({request.Context})");
+        Logger.Debug($"[Handler] SignatureHelp ({request.TextDocument}:{request.Position.ToStringMin()}) ({request.Context})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 

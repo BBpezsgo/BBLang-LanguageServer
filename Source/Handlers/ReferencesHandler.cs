@@ -6,7 +6,7 @@ sealed class ReferencesHandler : IReferencesHandler
 {
     Task<LocationContainer?> IRequestHandler<ReferenceParams, LocationContainer?>.Handle(ReferenceParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Debug($"[Handler] References ({request.TextDocument}:{request.Position.Line}:{request.Position.Character}) ({request.Context})");
+        Logger.Debug($"[Handler] References ({request.TextDocument}:{request.Position.ToStringMin()}) ({request.Context})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 

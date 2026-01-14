@@ -6,7 +6,7 @@ sealed class ImplementationHandler : IImplementationHandler
 {
     Task<LocationOrLocationLinks?> IRequestHandler<ImplementationParams, LocationOrLocationLinks?>.Handle(ImplementationParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
-        Logger.Debug($"[Handler] Implementation ({request.TextDocument}:{request.Position.Line}:{request.Position.Character})");
+        Logger.Debug($"[Handler] Implementation ({request.TextDocument}:{request.Position.ToStringMin()})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
 
