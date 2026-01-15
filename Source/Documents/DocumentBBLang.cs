@@ -146,11 +146,11 @@ sealed class DocumentBBLang : DocumentBase
                 PreprocessorVariables = PreprocessorVariables.Normal,
                 SourceProviders = [
                     Documents,
-                new FileSourceProvider()
-                {
-                    ExtraDirectories = config.ExtraDirectories,
-                },
-            ],
+                    new FileSourceProvider()
+                    {
+                        ExtraDirectories = config.ExtraDirectories,
+                    },
+                ],
                 AdditionalImports = config.AdditionalImports,
                 ExternalFunctions = config.ExternalFunctions.As<LanguageCore.Runtime.IExternalFunction>(),
                 ExternalConstants = config.ExternalConstants,
@@ -167,10 +167,6 @@ sealed class DocumentBBLang : DocumentBase
                 try
                 {
                     compilerResult = StatementCompiler.CompileFiles(Documents.Select(v => v.Uri.ToString()).ToArray(), compilerSettings, diagnostics);
-                    if (!diagnostics.HasErrors)
-                    {
-                        Logger.Info($"Validation successful");
-                    }
                 }
                 catch (LanguageException languageException)
                 {
@@ -183,14 +179,16 @@ sealed class DocumentBBLang : DocumentBase
                 CompilerResult = compilerResult;
 
                 compiledFiles = new(compilerResult.RawTokens.Select(v => v.File));
+                Logger.Info($"Validated");
             }
             else if (Content is not null)
             {
                 TokenizerResult tokens = Tokenizer.Tokenize(Content, diagnostics, compilerSettings.PreprocessorVariables, Uri, compilerSettings.TokenizerSettings);
                 ParserResult ast = Parser.Parse(tokens.Tokens, Uri, diagnostics);
-                Tokens = !ast.Tokens.IsDefault ? ast.Tokens : !ast.Tokens.IsDefault ? Tokens : ImmutableArray<Token>.Empty;
+                Tokens = !ast.Tokens.IsDefault ? ast.Tokens : !tokens.Tokens.IsDefault ? tokens.Tokens : ImmutableArray<Token>.Empty;
                 AST = ast.IsNotEmpty ? ast : AST;
                 compiledFiles = new() { Uri };
+                Logger.Info($"Validated (fallback)");
             }
             else
             {
@@ -245,6 +243,29 @@ sealed class DocumentBBLang : DocumentBase
         Logger.Debug($"Completion {(e.Context is null ? "null" : $"{e.Context.TriggerKind} {e.Context.TriggerCharacter}")}");
 
         SinglePosition p = e.Position.ToCool();
+
+        foreach (var attribute in
+            AST.AliasDefinitions.Cast<IHaveAttributes>()
+            .Append(AST.Structs)
+            .Append(AST.Functions)
+            .Append(AST.Operators)
+            .Append(AST.EnumerateStatements().OfType<IHaveAttributes>())
+            .SelectMany(v => v.Attributes)
+        )
+        {
+            if (attribute.Identifier.Position.Range.Contains(p))
+            {
+                foreach (string item in AttributeConstants.List)
+                {
+                    result.Add(new CompletionItem()
+                    {
+                        Label = item,
+                        Kind = CompletionItemKind.Class,
+                    });
+                }
+                return result.ToArray();
+            }
+        }
 
         List<Statement> contextStatement = new();
         foreach (Statement _statement in AST.EnumerateStatements())
@@ -562,20 +583,11 @@ sealed class DocumentBBLang : DocumentBase
         _ => type.ToString()
     };
 
-    static string GetValueHover(CompiledValue value) => value.ToStringValue() ?? string.Empty;
-
     static void HandleTypeHovering(Statement statement, ref string? typeHover)
     {
         if (statement is Expression statementWithValue &&
             statementWithValue.CompiledType is not null)
         { typeHover = GetTypeHover(statementWithValue.CompiledType); }
-    }
-
-    static void HandleValueHovering(Statement statement, ref string? valueHover)
-    {
-        if (statement is Expression statementWithValue &&
-            statementWithValue.PredictedValue.HasValue)
-        { valueHover = GetValueHover(statementWithValue.PredictedValue.Value); }
     }
 
     bool HandleDefinitionHover(object? definition, ref string? definitionHover, ref string? docsHover) => definition switch
@@ -816,7 +828,7 @@ sealed class DocumentBBLang : DocumentBase
 
         if (token == null)
         {
-            Logger.Warn($"No token at {e.Position.ToStringMin()} ({Tokens.Length})");
+            Logger.Debug($"No token at {e.Position.ToStringMin()} ({Tokens.Length})");
             return null;
         }
 
@@ -861,7 +873,6 @@ sealed class DocumentBBLang : DocumentBase
         }
 
         string? typeHover = null;
-        string? valueHover = null;
         string? definitionHover = null;
         string? docsHover = null;
         Statement? statement = null;
@@ -919,7 +930,6 @@ sealed class DocumentBBLang : DocumentBase
                 HandleDefinitionHover(item, ref definitionHover, ref docsHover);
                 HandleTypeHovering(item, ref typeHover);
                 HandleReferenceHovering(item, ref definitionHover, ref docsHover);
-                //HandleValueHovering(item, ref valueHover);
             }
         }
         else
@@ -979,15 +989,6 @@ sealed class DocumentBBLang : DocumentBase
             contents.AppendLine("```");
         }
 
-        //if (valueHover is not null)
-        //{
-        //    if (contents.Length > 0) contents.AppendLine("---");
-        //    contents.AppendLine("**Value:**");
-        //    contents.AppendLine($"```{LanguageConstants.LanguageId}");
-        //    contents.AppendLine(valueHover);
-        //    contents.AppendLine("```");
-        //}
-
         if (docsHover is not null)
         {
             if (contents.Length > 0) contents.AppendLine("---");
@@ -1021,7 +1022,7 @@ sealed class DocumentBBLang : DocumentBase
                 Command = new Command()
                 {
                     Title = $"{function.References.DistinctBy(v => v.Source).Count(v => v.SourceFile != null)} reference",
-                }
+                },
             });
         }
 
@@ -1683,8 +1684,10 @@ sealed class DocumentBBLang : DocumentBase
                     builder.Push(token.Position.Range.ToOmniSharp(), SemanticTokenType.Operator, Array.Empty<SemanticTokenModifier>());
                     break;
                 case TokenAnalyzedType.OtherOperator:
+                    builder.Push(token.Position.Range.ToOmniSharp(), SemanticTokenType.Operator, Array.Empty<SemanticTokenModifier>());
                     break;
                 case TokenAnalyzedType.TypeModifier:
+                    builder.Push(token.Position.Range.ToOmniSharp(), SemanticTokenType.Operator, Array.Empty<SemanticTokenModifier>());
                     break;
                 case TokenAnalyzedType.InstructionLabel:
                     break;
