@@ -179,7 +179,7 @@ sealed class DocumentBBLang : DocumentBase
                 CompilerResult = compilerResult;
 
                 compiledFiles = new(compilerResult.RawTokens.Select(v => v.File));
-                Logger.Info($"Validated");
+                Logger.Info($"Validated ({(diagnostics.HasErrors ? "failed" : "ok")})");
             }
             else if (Content is not null)
             {
@@ -195,6 +195,12 @@ sealed class DocumentBBLang : DocumentBase
                 compiledFiles = new();
             }
 
+            foreach (LanguageCore.Diagnostic item in diagnostics.Diagnostics)
+            {
+                if (item.Level > DiagnosticsLevel.Error) continue;
+                Logger.Error(item.ToString());
+            }
+
             foreach (DiagnosticWithoutContext item in diagnostics.DiagnosticsWithoutContext)
             {
                 Logger.Error(item.ToString());
@@ -202,17 +208,44 @@ sealed class DocumentBBLang : DocumentBase
 
             Dictionary<Uri, List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>> diagnosticsPerFile = new();
 
-            foreach (LanguageCore.Diagnostic diagnostic in diagnostics.Diagnostics)
+            static string GetFullMessage(LanguageCore.Diagnostic diagnostic, int indent)
             {
-                if (diagnostic.File is null) continue;
-                if (!diagnosticsPerFile.TryGetValue(diagnostic.File, out List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>? container))
+                string result = $"{diagnostic.Message}";
+                foreach (LanguageCore.Diagnostic item in diagnostic.SubErrors)
                 {
-                    container = diagnosticsPerFile[diagnostic.File] = new();
+                    result += $"\n{new string(' ', indent)} -> {GetFullMessage(item, indent + 2)}";
                 }
-                container.Add(diagnostic.ToOmniSharp());
+                return result;
             }
 
-            foreach (var file in compiledFiles)
+            void CompileDiagnostic(LanguageCore.Diagnostic diagnostic, Dictionary<Uri, List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>> diagnosticsPerFile)
+            {
+                if (diagnostic.File is null) return;
+
+                if (!diagnosticsPerFile.TryGetValue(diagnostic.File, out List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>? container))
+                { container = diagnosticsPerFile[diagnostic.File] = new(); }
+
+                container.Add(new OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic()
+                {
+                    Severity = diagnostic.Level.ToOmniSharp(),
+                    Range = diagnostic.Position.ToOmniSharp(),
+                    Message = GetFullMessage(diagnostic, 0),
+                    Source = diagnostic.File.ToString(),
+                });
+
+                foreach (LanguageCore.Diagnostic item in diagnostic.SubErrors)
+                {
+                    if (item.Position.Equals(diagnostic.Position) && item.File == diagnostic.File) continue;
+                    CompileDiagnostic(item, diagnosticsPerFile);
+                }
+            }
+
+            foreach (LanguageCore.Diagnostic diagnostic in diagnostics.Diagnostics)
+            {
+                CompileDiagnostic(diagnostic, diagnosticsPerFile);
+            }
+
+            foreach (Uri file in compiledFiles)
             {
                 if (!diagnosticsPerFile.TryGetValue(file, out List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>? fileDiagnostics))
                 {
@@ -236,7 +269,7 @@ sealed class DocumentBBLang : DocumentBase
         }
     }
 
-    public override CompletionItem[] Completion(CompletionParams e)
+    public override IEnumerable<CompletionItem> Completion(CompletionParams e)
     {
         List<CompletionItem> result = new();
 
@@ -263,7 +296,12 @@ sealed class DocumentBBLang : DocumentBase
                         Kind = CompletionItemKind.Class,
                     });
                 }
-                return result.ToArray();
+                return result;
+            }
+
+            if (attribute.Brackets.Position.Range.Contains(p))
+            {
+                return result;
             }
         }
 
@@ -362,7 +400,7 @@ sealed class DocumentBBLang : DocumentBase
                             });
                         }
 
-                        return result.ToArray();
+                        return result;
                     }
                     else
                     {
@@ -500,7 +538,7 @@ sealed class DocumentBBLang : DocumentBase
         result.AddRange(ModifierKeywords.List.Select(v => new CompletionItem() { Kind = CompletionItemKind.Keyword, Label = v }));
         result.AddRange(StatementKeywords.List.Select(v => new CompletionItem() { Kind = CompletionItemKind.Keyword, Label = v }));
 
-        return result.ToArray();
+        return result;
     }
 
     #region Hover()
@@ -1008,7 +1046,7 @@ sealed class DocumentBBLang : DocumentBase
 
     #endregion
 
-    public override CodeLens[] CodeLens(CodeLensParams e)
+    public override IEnumerable<CodeLens> CodeLens(CodeLensParams e)
     {
         List<CodeLens> result = new();
 
@@ -1082,7 +1120,7 @@ sealed class DocumentBBLang : DocumentBase
             });
         }
 
-        return result.ToArray();
+        return result;
     }
 
     static void GetDeepestTypeInstance(ref TypeInstance type1, ref GeneralType type2, SinglePosition position)
@@ -1318,7 +1356,7 @@ sealed class DocumentBBLang : DocumentBase
         return new LocationOrLocationLinks(links);
     }
 
-    public override SymbolInformationOrDocumentSymbol[] Symbols(DocumentSymbolParams e)
+    public override IEnumerable<SymbolInformationOrDocumentSymbol> Symbols(DocumentSymbolParams e)
     {
         List<SymbolInformationOrDocumentSymbol> result = new();
 
@@ -1390,10 +1428,10 @@ sealed class DocumentBBLang : DocumentBase
             });
         }
 
-        return result.ToArray();
+        return result;
     }
 
-    public override OmniSharpLocation[] References(ReferenceParams e)
+    public override IEnumerable<OmniSharpLocation> References(ReferenceParams e)
     {
         List<OmniSharpLocation> result = new();
 
@@ -1451,7 +1489,7 @@ sealed class DocumentBBLang : DocumentBase
             }
         }
 
-        return result.ToArray();
+        return result;
     }
 
     public override SignatureHelp? SignatureHelp(SignatureHelpParams e)
@@ -1710,66 +1748,5 @@ sealed class DocumentBBLang : DocumentBase
         }
     }
 
-    public override IEnumerable<DocumentHighlight>? DocumentHighlight(DocumentHighlightParams request)
-    {
-        List<DocumentHighlight> result = new();
-
-        if (AST.GetStatementAt(request.Position.ToCool(), out Statement? statement))
-        {
-            foreach (Statement item in StatementWalker.Visit(statement))
-            {
-                Position from = Utils.GetInteractivePosition(item);
-
-                if (!from.Range.Contains(request.Position.ToCool()))
-                { continue; }
-
-                IReferenceable referenceable;
-                if (item is IReferenceable _referenceable)
-                {
-                    referenceable = _referenceable;
-                }
-                else if (item is IReferenceableTo referenceableTo)
-                {
-                    if (referenceableTo.Reference is IReferenceable _referenceable2)
-                    {
-                        referenceable = _referenceable2;
-                    }
-                    else
-                    {
-                        continue;
-                    }
-                }
-                else
-                {
-                    continue;
-                }
-
-                result.Add(new DocumentHighlight()
-                {
-                    Kind = DocumentHighlightKind.Text,
-                    Range = item.Position.ToOmniSharp(),
-                });
-
-                switch (referenceable)
-                {
-                    case IReferenceable<Expression> rs:
-                        foreach (var r in rs.References)
-                        {
-                            if (r.IsImplicit) continue;
-                            if (r.Source.File != Uri) continue;
-                            result.Add(new DocumentHighlight()
-                            {
-                                Kind = DocumentHighlightKind.Text,
-                                Range = r.Source.Position.ToOmniSharp(),
-                            });
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            }
-        }
-
-        return result;
-    }
+    public override IEnumerable<DocumentHighlight>? DocumentHighlight(DocumentHighlightParams request) => null;
 }

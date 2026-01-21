@@ -2,8 +2,8 @@ using System.IO;
 using LanguageCore;
 using OmniSharpPosition = OmniSharp.Extensions.LanguageServer.Protocol.Models.Position;
 using OmniSharpRange = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
+using OmniSharpLocation = OmniSharp.Extensions.LanguageServer.Protocol.Models.Location;
 using Position = LanguageCore.Position;
-using OmniSharpDiagnostic = OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic;
 using System.Diagnostics;
 
 namespace LanguageServer;
@@ -21,32 +21,10 @@ static class Extensions
         _ => throw new UnreachableException(),
     };
 
-    [return: NotNullIfNotNull(nameof(diagnostic))]
-    static string? GetFullMessage(LanguageCore.Diagnostic? diagnostic, int indent)
-    {
-        if (diagnostic is null)return null;
-        string result = $"{diagnostic.Message}";
-        foreach (LanguageCore.Diagnostic item in diagnostic.SubErrors)
-        {
-            result += $"\n{new string(' ', indent)} -> {GetFullMessage(item, indent + 2)}";
-        }
-        return result;
-    }
-
-    [return: NotNullIfNotNull(nameof(diagnostic))]
-    public static OmniSharpDiagnostic? ToOmniSharp(this LanguageCore.Diagnostic? diagnostic, string? source = null) => diagnostic is null ? null : new OmniSharpDiagnostic()
-    {
-        Severity = diagnostic.Level.ToOmniSharp(),
-        Range = diagnostic.Position.ToOmniSharp(),
-        Message = GetFullMessage(diagnostic, 0),
-        Source = source,
-    };
-
-    public static string Extension(this DocumentUri uri)
+    public static string GetExtension(this DocumentUri uri)
         => Path.GetExtension(uri.ToUri().AbsolutePath).TrimStart('.').ToLowerInvariant();
 
-    public static string Extension(this TextDocumentIdentifier uri)
-        => Path.GetExtension(uri.Uri.ToUri().AbsolutePath).TrimStart('.').ToLowerInvariant();
+    public static string GetExtension(this TextDocumentIdentifier uri) => uri.Uri.GetExtension();
 
     public static OmniSharpRange ToOmniSharp(this Range<SinglePosition> self) => new()
     {
@@ -76,6 +54,12 @@ static class Extensions
     {
         Line = self.Line,
         Character = self.Character,
+    };
+
+    public static OmniSharpLocation ToOmniSharp(this LanguageCore.Location self) => new()
+    {
+        Uri = self.File,
+        Range = self.Position.ToOmniSharp(),
     };
 
     public static string ToStringMin(this OmniSharpPosition self) => self.ToCool().ToStringMin();

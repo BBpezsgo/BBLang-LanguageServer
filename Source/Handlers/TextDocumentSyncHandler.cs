@@ -21,7 +21,7 @@ sealed class TextDocumentSyncHandler : TextDocumentSyncHandlerBase
     };
 
     public override TextDocumentAttributes GetTextDocumentAttributes(DocumentUri uri)
-        => new(uri, uri.Extension());
+        => new(uri, uri.GetExtension());
 
     public override Task<Unit> Handle(DidOpenTextDocumentParams request, CancellationToken cancellationToken)
     {

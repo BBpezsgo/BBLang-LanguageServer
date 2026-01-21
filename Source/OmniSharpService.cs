@@ -39,9 +39,11 @@ sealed class OmniSharpService
 
     void Configure(LanguageServerOptions options)
     {
+#pragma warning disable CA2000 // Dispose objects before losing scope
         options
             .WithInput(Console.OpenStandardInput())
             .WithOutput(Console.OpenStandardOutput());
+#pragma warning restore CA2000 // Dispose objects before losing scope
 
         options
             .ConfigureLogging(
@@ -55,16 +57,21 @@ sealed class OmniSharpService
            .WithServices(ConfigureServices);
 
         options
-           .WithHandler<TextDocumentSyncHandler>()
-           .WithHandler<DocumentSymbolHandler>()
            .WithHandler<CodeLensHandler>()
            .WithHandler<CompletionHandler>()
+           //.WithHandler<DeclarationHandler>()
            .WithHandler<DefinitionHandler>()
-           .WithHandler<HoverHandler>()
            .WithHandler<DidChangeConfigurationHandler>()
-           .WithHandler<SemanticTokensHandler>()
+           //.WithHandler<DocumentHighlightHandler>()
+           .WithHandler<DocumentSymbolHandler>()
+           .WithHandler<HoverHandler>()
+           //.WithHandler<ImplementationHandler>()
            .WithHandler<ReferencesHandler>()
-           .WithHandler<SignatureHelpHandler>();
+           .WithHandler<SemanticTokensHandler>()
+           .WithHandler<SignatureHelpHandler>()
+           .WithHandler<TextDocumentSyncHandler>()
+           .WithHandler<TypeDefinitionHandler>()
+        ;
 
         options.OnInitialize((server, request, cancellationToken) =>
         {

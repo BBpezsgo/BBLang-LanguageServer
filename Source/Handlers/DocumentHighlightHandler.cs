@@ -2,7 +2,7 @@ using MediatR;
 
 namespace LanguageServer.Handlers;
 
-sealed class HoverHandlere : IDocumentHighlightHandler
+sealed class DocumentHighlightHandler : IDocumentHighlightHandler
 {
     public Task<DocumentHighlightContainer?> Handle(DocumentHighlightParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {

@@ -84,7 +84,7 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
             }
         }
 
-        document = GenerateDocument(documentId.Uri, content, documentId.Extension(), this);
+        document = GenerateDocument(documentId.Uri, content, documentId.GetExtension(), this);
         _documents.Add(document);
 
         return document;

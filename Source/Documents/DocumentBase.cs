@@ -33,7 +33,7 @@ abstract class DocumentBase
         Content = e.TextDocument.Text;
 
         DocumentUri = e.TextDocument.Uri;
-        LanguageId = e.TextDocument.Extension();
+        LanguageId = e.TextDocument.GetExtension();
         Version = e.TextDocument.Version;
     }
 
@@ -61,7 +61,7 @@ abstract class DocumentBase
         }
 
         DocumentUri = e.TextDocument.Uri;
-        LanguageId = e.TextDocument.Extension();
+        LanguageId = e.TextDocument.GetExtension();
         Version = e.TextDocument.Version;
     }
 
@@ -74,7 +74,7 @@ abstract class DocumentBase
         }
 
         DocumentUri = e.TextDocument.Uri;
-        LanguageId = e.TextDocument.Extension();
+        LanguageId = e.TextDocument.GetExtension();
     }
 
     public abstract Hover? Hover(HoverParams request);

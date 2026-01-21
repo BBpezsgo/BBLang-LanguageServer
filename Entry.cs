@@ -20,10 +20,5 @@ static class Program
             }
             return -1;
         }
-        catch (Exception ex)
-        {
-            await Console.Error.WriteLineAsync(ex.ToString()).ConfigureAwait(false);
-            return -1;
-        }
     }
 }
