@@ -36,7 +36,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Core\Source\Core.csproj" />
+    <ProjectReference Include="..\Core\Source\Core.csproj">
+        <SetConfiguration>ForLanguageServer=true</SetConfiguration>
+    </ProjectReference>
   </ItemGroup>
 
 </Project>
