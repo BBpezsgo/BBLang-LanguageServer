@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Text;
 using LanguageCore;
 using LanguageCore.BBLang.Generator;
@@ -119,7 +119,7 @@ sealed class DocumentBBLang : DocumentBase
             break;
         }
 
-        Logger.Warn($"Couldn't get comment documentation for {file}:{position.ToStringMin()} (no comments found)");
+        //Logger.Warn($"Couldn't get comment documentation for {file}:{position.ToStringMin()} (no comments found)");
         return false;
     }
 
@@ -195,11 +195,11 @@ sealed class DocumentBBLang : DocumentBase
                 compiledFiles = new();
             }
 
-            foreach (LanguageCore.Diagnostic item in diagnostics.Diagnostics)
-            {
-                if (item.Level > DiagnosticsLevel.Error) continue;
-                Logger.Error(item.ToString());
-            }
+            //foreach (LanguageCore.Diagnostic item in diagnostics.Diagnostics)
+            //{
+            //    if (item.Level > DiagnosticsLevel.Error) continue;
+            //    Logger.Error(item.ToString());
+            //}
 
             foreach (DiagnosticWithoutContext item in diagnostics.DiagnosticsWithoutContext)
             {
@@ -273,6 +273,38 @@ sealed class DocumentBBLang : DocumentBase
     {
         List<CompletionItem> result = new();
 
+        void AddTypeItems()
+        {
+            foreach (CompiledStruct @struct in CompilerResult.Structs)
+            {
+                if (!@struct.CanUse(Uri))
+                { continue; }
+
+                result.Add(new CompletionItem()
+                {
+                    Kind = CompletionItemKind.Struct,
+                    Label = @struct.Identifier.Content,
+                });
+            }
+
+            foreach (CompiledAlias alias in CompilerResult.Aliases)
+            {
+                if (!alias.CanUse(Uri)) continue;
+
+                result.Add(new CompletionItem()
+                {
+                    Kind = CompletionItemKind.Class,
+                    Label = alias.Identifier.Content,
+                    LabelDetails = new CompletionItemLabelDetails()
+                    {
+                        Detail = $" = {alias.Value}",
+                    },
+                });
+            }
+
+            result.AddRange(TypeKeywords.List.Select(v => new CompletionItem() { Kind = CompletionItemKind.Keyword, Label = v }));
+        }
+
         Logger.Debug($"Completion {(e.Context is null ? "null" : $"{e.Context.TriggerKind} {e.Context.TriggerCharacter}")}");
 
         SinglePosition p = e.Position.ToCool();
@@ -305,112 +337,100 @@ sealed class DocumentBBLang : DocumentBase
             }
         }
 
-        List<Statement> contextStatement = new();
-        foreach (Statement _statement in AST.EnumerateStatements())
+        foreach (Statement statement in AST.EnumerateStatements().Where(v => v.Position.Range.Contains(p)))
         {
-            if (_statement.Position.Range.Start > p) continue;
-            if (contextStatement.Count == 0 || _statement.Position.AbsoluteRange.Start >= contextStatement[0].Position.AbsoluteRange.Start)
+            Logger.Debug($"# {statement.GetType().Name} {statement}");
+
+            if (statement is AnyCallExpression anyCallExpression
+                && anyCallExpression.Expression is FieldExpression fieldExpression1)
             {
-                for (int i = 0; i < contextStatement.Count; i++)
-                {
-                    if (StatementWalker.Visit(contextStatement[i]).Contains(_statement)) continue;
-                    Logger.Debug($"{contextStatement[i].GetType().Name} {contextStatement[i]}");
-                    contextStatement.RemoveAt(i--);
-                }
-                contextStatement.Add(_statement);
+                Logger.Debug(fieldExpression1.Identifier.Position.Range);
+                Logger.Debug(p);
+                Logger.Debug($" -> {anyCallExpression.Expression.GetType().Name} {anyCallExpression.Expression}");
             }
-        }
 
-        foreach (Statement item in contextStatement)
-        {
-            Logger.Debug($"{item.GetType().Name} {item}");
-        }
-
-        if (contextStatement.Count > 0)
-        {
-            if (contextStatement[^1] is IdentifierExpression identifier
-                && contextStatement.Count > 1
-                && contextStatement[^2] is FieldExpression fieldExpression)
+            if (statement is FieldExpression fieldExpression
+                && fieldExpression.Identifier.Position.Range.Contains(p))
             {
-                if (fieldExpression.Identifier == identifier)
+                if (fieldExpression.Object.CompiledType is not null)
                 {
-                    if (fieldExpression.Object.CompiledType is not null)
-                    {
-                        List<GeneralType> checkTypes = new();
+                    List<GeneralType> checkTypes = new();
 
+                    {
+                        GeneralType prevType = fieldExpression.Object.CompiledType;
+                        checkTypes.Add(new PointerType(prevType));
+                        checkTypes.Add(prevType);
+                        while (prevType.Is(out PointerType? pointerType2))
                         {
-                            GeneralType prevType = fieldExpression.Object.CompiledType;
-                            checkTypes.Add(new PointerType(prevType));
+                            prevType = pointerType2.To;
                             checkTypes.Add(prevType);
-                            while (prevType.Is(out PointerType? pointerType2))
-                            {
-                                prevType = pointerType2.To;
-                                checkTypes.Add(prevType);
-                            }
                         }
-
-                        Dictionary<string, List<CompiledFunctionDefinition>> functionOverloads = new();
-
-                        foreach (GeneralType prevType in checkTypes)
-                        {
-                            if (prevType is StructType structType)
-                            {
-                                foreach (var item in structType.Struct.Fields)
-                                {
-                                    result.Add(new CompletionItem()
-                                    {
-                                        Kind = CompletionItemKind.Field,
-                                        Label = item.Identifier.Content,
-                                        LabelDetails = new CompletionItemLabelDetails()
-                                        {
-                                            Description = item.Type.ToString(),
-                                        },
-                                    });
-                                }
-                            }
-
-                            foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
-                            {
-                                if (!function.CanUse(Uri)) continue;
-                                if (function.Parameters.Length <= 0) continue;
-                                if (!function.Parameters[0].IsThis) continue;
-                                if (!function.Parameters[0].Type.SameAs(prevType)) continue;
-
-                                if (!functionOverloads.TryGetValue(function.Identifier.Content, out var overloads))
-                                { overloads = functionOverloads[function.Identifier.Content] = new(); }
-                                overloads.Add(function);
-                            }
-                        }
-
-                        foreach ((string function, List<CompiledFunctionDefinition>? overloads) in functionOverloads)
-                        {
-                            result.Add(new CompletionItem()
-                            {
-                                Kind = CompletionItemKind.Function,
-                                Label = function,
-                                LabelDetails = new CompletionItemLabelDetails()
-                                {
-                                    Description = overloads.Count switch
-                                    {
-                                        0 => null,
-                                        1 => overloads[0].Type.ToString(),
-                                        _ => $"{overloads.Count} overloads",
-                                    },
-                                },
-                            });
-                        }
-
-                        return result;
                     }
-                    else
+
+                    Dictionary<string, List<(CompiledFunctionDefinition Function, ImmutableDictionary<string, GeneralType>? TypeArguments)>> functionOverloads = new();
+
+                    foreach (GeneralType prevType in checkTypes)
                     {
-                        Logger.Warn($"Missing type on {fieldExpression.Object.GetType().Name} {fieldExpression.Object}");
+                        if (prevType.Is(out StructType? structType))
+                        {
+                            foreach (CompiledField field in structType.Struct.Fields)
+                            {
+                                result.Add(new CompletionItem()
+                                {
+                                    Kind = CompletionItemKind.Field,
+                                    Label = field.Identifier.Content,
+                                    LabelDetails = new CompletionItemLabelDetails()
+                                    {
+                                        Description = GeneralType.TryInsertTypeParameters(field.Type, structType.TypeArguments).ToString(),
+                                    },
+                                });
+                            }
+                        }
+
+                        foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
+                        {
+                            if (!function.CanUse(Uri)) continue;
+                            if (function.Parameters.Length <= 0) continue;
+                            if (!function.Parameters[0].IsThis) continue;
+                            if (!function.Parameters[0].Type.SameAs(prevType)) continue;
+
+                            if (!functionOverloads.TryGetValue(function.Identifier.Content, out var overloads))
+                            { overloads = functionOverloads[function.Identifier.Content] = new(); }
+                            overloads.Add((function, (prevType.Is(out StructType? w) && function.Context == w.Struct) ? w.TypeArguments : null));
+                        }
                     }
+
+                    foreach ((string function, var overloads) in functionOverloads)
+                    {
+                        result.Add(new CompletionItem()
+                        {
+                            Kind = CompletionItemKind.Function,
+                            Label = function,
+                            LabelDetails = new CompletionItemLabelDetails()
+                            {
+                                Description = overloads.Count switch
+                                {
+                                    0 => null,
+                                    1 => GeneralType.TryInsertTypeParameters(overloads[0].Function.Type, overloads[0].TypeArguments).ToString(),
+                                    _ => $"{overloads.Count} overloads",
+                                },
+                            },
+                        });
+                    }
+
+                    return result;
                 }
                 else
                 {
-                    Logger.Warn($"Field identifier {identifier.GetType().Name} {identifier} != {fieldExpression.Identifier.GetType().Name} {fieldExpression.Identifier}");
+                    Logger.Warn($"Missing type on {fieldExpression.Object.GetType().Name} {fieldExpression.Object}");
                 }
+            }
+
+            if (statement is NewInstanceExpression newInstanceExpression
+                && newInstanceExpression.Type.Position.Range.Contains(p))
+            {
+                AddTypeItems();
+                return result;
             }
         }
 
@@ -458,10 +478,10 @@ sealed class DocumentBBLang : DocumentBase
                     {
                         Kind = CompletionItemKind.Constant,
                         Label = statement.Identifier.Content,
-                        LabelDetails = new CompletionItemLabelDetails()
-                        {
-                            Description = statement.Type.ToString(),
-                        },
+                        //LabelDetails = new CompletionItemLabelDetails()
+                        //{
+                        //    Description = statement.Type.ToString(),
+                        //},
                     });
                 }
                 else
@@ -470,10 +490,10 @@ sealed class DocumentBBLang : DocumentBase
                     {
                         Kind = CompletionItemKind.Variable,
                         Label = statement.Identifier.Content,
-                        LabelDetails = new CompletionItemLabelDetails()
-                        {
-                            Description = statement.Type.ToString(),
-                        },
+                        //LabelDetails = new CompletionItemLabelDetails()
+                        //{
+                        //    Description = statement.Type.ToString(),
+                        //},
                     });
                 }
             }
@@ -505,34 +525,8 @@ sealed class DocumentBBLang : DocumentBase
             }
         }
 
-        foreach (CompiledStruct @struct in CompilerResult.Structs)
-        {
-            if (!@struct.CanUse(Uri))
-            { continue; }
+        AddTypeItems();
 
-            result.Add(new CompletionItem()
-            {
-                Kind = CompletionItemKind.Struct,
-                Label = @struct.Identifier.Content,
-            });
-        }
-
-        foreach (CompiledAlias alias in CompilerResult.Aliases)
-        {
-            if (!alias.CanUse(Uri)) continue;
-
-            result.Add(new CompletionItem()
-            {
-                Kind = CompletionItemKind.Class,
-                Label = alias.Identifier.Content,
-                LabelDetails = new CompletionItemLabelDetails()
-                {
-                    Detail = $" = {alias.Value}",
-                },
-            });
-        }
-
-        result.AddRange(TypeKeywords.List.Select(v => new CompletionItem() { Kind = CompletionItemKind.Keyword, Label = v }));
         result.AddRange(DeclarationKeywords.List.Select(v => new CompletionItem() { Kind = CompletionItemKind.Keyword, Label = v }));
         result.AddRange(ProtectionKeywords.List.Select(v => new CompletionItem() { Kind = CompletionItemKind.Keyword, Label = v }));
         result.AddRange(ModifierKeywords.List.Select(v => new CompletionItem() { Kind = CompletionItemKind.Keyword, Label = v }));
@@ -543,7 +537,7 @@ sealed class DocumentBBLang : DocumentBase
 
     #region Hover()
 
-    static string GetFunctionHover<TFunction>(TFunction function)
+    static string GetFunctionHover<TFunction>(TFunction function, ImmutableDictionary<string, GeneralType>? typeArguments)
         where TFunction : FunctionThingDefinition, ICompiledFunctionDefinition, IReadable
     {
         StringBuilder builder = new();
@@ -555,13 +549,13 @@ sealed class DocumentBBLang : DocumentBase
             builder.Append(' ');
         }
 
-        builder.Append(function.Type);
+        builder.Append(GeneralType.TryInsertTypeParameters(function.Type, typeArguments) ?? function.Type);
         builder.Append(' ');
         builder.Append(function.Identifier.ToString());
         if (function.Template != null)
         {
             builder.Append('<');
-            builder.AppendJoin(", ", function.Template.Parameters);
+            builder.AppendJoin(", ", typeArguments is not null ? function.Template.Parameters.Select(v => typeArguments[v.Content].ToString()) : function.Template.Parameters.Select(v => v.Content));
             builder.Append('>');
         }
         builder.Append('(');
@@ -572,7 +566,7 @@ sealed class DocumentBBLang : DocumentBase
             if (function.Parameters[i].Modifiers.Length > 0)
             { builder.Append(' '); }
 
-            builder.Append(function.Parameters[i].Type.ToString());
+            builder.Append(GeneralType.TryInsertTypeParameters((function as ICompiledFunctionDefinition).Parameters[i].Type, typeArguments).ToString());
 
             builder.Append(' ');
             builder.Append(function.Parameters[i].Identifier.ToString());
@@ -628,6 +622,17 @@ sealed class DocumentBBLang : DocumentBase
         { typeHover = GetTypeHover(statementWithValue.CompiledType); }
     }
 
+    bool HandleDefinitionHover<TFunction>(StatementCompiler.FunctionQueryResult<TFunction> function, ref string? definitionHover, ref string? docsHover)
+        where TFunction : FunctionThingDefinition, ICompiledFunctionDefinition, IReadable
+    {
+        if (function.OriginalFunction.File is null)
+        { return false; }
+
+        definitionHover = GetFunctionHover(function.Function, function.TypeArguments);
+        GetCommentDocumentation(function.OriginalFunction, out docsHover);
+        return true;
+    }
+
     bool HandleDefinitionHover(object? definition, ref string? definitionHover, ref string? docsHover) => definition switch
     {
         CompiledOperatorDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
@@ -641,6 +646,7 @@ sealed class DocumentBBLang : DocumentBase
         CompiledField v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
         FieldDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
         CompiledStruct v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
+        StatementCompiler.FunctionQueryResult<CompiledFunctionDefinition> v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
 
         StructDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
 
@@ -653,7 +659,7 @@ sealed class DocumentBBLang : DocumentBase
         if (function.File is null)
         { return false; }
 
-        definitionHover = GetFunctionHover(function);
+        definitionHover = GetFunctionHover(function, null);
         GetCommentDocumentation(function, out docsHover);
         return true;
     }
@@ -913,7 +919,6 @@ sealed class DocumentBBLang : DocumentBase
         string? typeHover = null;
         string? definitionHover = null;
         string? docsHover = null;
-        Statement? statement = null;
 
         if (CompilerResult.GetFunctionAt(Uri, position, out CompiledFunctionDefinition? function))
         {
@@ -948,20 +953,16 @@ sealed class DocumentBBLang : DocumentBase
         {
             HandleDefinitionHover(parameter, ref definitionHover, ref docsHover);
         }
-        else if (AST.GetStatementAt(position, out statement))
+        else if (AST.GetStatementAt(position, out Statement? statement))
         {
+            Logger.Debug(statement);
             foreach (Statement item in StatementWalker.Visit(statement))
             {
-                if (!item.Position.Range.Contains(e.Position.ToCool()))
-                { continue; }
+                if (!item.Position.Range.Contains(e.Position.ToCool())) continue;
 
                 Position checkPosition = Utils.GetInteractivePosition(item);
 
-                if (item is BinaryOperatorCallExpression)
-                { checkPosition = item.Position; }
-
-                if (!checkPosition.Range.Contains(e.Position.ToCool()))
-                { continue; }
+                if (!checkPosition.Range.Contains(e.Position.ToCool())) continue;
 
                 range = checkPosition.Range;
 
@@ -993,24 +994,6 @@ sealed class DocumentBBLang : DocumentBase
         }
 
         StringBuilder contents = new();
-
-        if (statement is not null)
-        {
-            //if (contents.Length > 0) contents.AppendLine("---");
-            //contents.AppendLine("**Statement:**");
-            //contents.AppendLine($"```");
-            //contents.AppendLine(statement.GetType().Name);
-            //contents.AppendLine("```");
-
-            //if (statement is IReferenceableTo referenceableTo)
-            //{
-            //    if (contents.Length > 0) contents.AppendLine("---");
-            //    contents.AppendLine("**Ref:**");
-            //    contents.AppendLine($"```");
-            //    contents.AppendLine(referenceableTo.Reference?.GetType().Name ?? "null");
-            //    contents.AppendLine("```");
-            //}
-        }
 
         if (definitionHover is not null)
         {
