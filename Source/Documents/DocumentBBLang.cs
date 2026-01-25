@@ -28,7 +28,6 @@ sealed class DocumentBBLang : DocumentBase
     public override void OnChanged(DidChangeTextDocumentParams e)
     {
         base.OnChanged(e);
-        Validate();
     }
 
     public override void OnSaved(DidSaveTextDocumentParams e)
@@ -139,7 +138,7 @@ sealed class DocumentBBLang : DocumentBase
 
             diagnostics.Clear();
 
-            CompilerSettings compilerSettings = new CompilerSettings(CodeGeneratorForMain.DefaultCompilerSettings)
+            CompilerSettings compilerSettings = new(CodeGeneratorForMain.DefaultCompilerSettings)
             {
                 Optimizations = OptimizationSettings.None,
                 CompileEverything = true,
@@ -194,12 +193,6 @@ sealed class DocumentBBLang : DocumentBase
             {
                 compiledFiles = new();
             }
-
-            //foreach (LanguageCore.Diagnostic item in diagnostics.Diagnostics)
-            //{
-            //    if (item.Level > DiagnosticsLevel.Error) continue;
-            //    Logger.Error(item.ToString());
-            //}
 
             foreach (DiagnosticWithoutContext item in diagnostics.DiagnosticsWithoutContext)
             {
