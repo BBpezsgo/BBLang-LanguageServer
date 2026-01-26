@@ -1,25 +1,24 @@
-using MediatR;
-
 namespace LanguageServer.Handlers;
 
 sealed class TypeDefinitionHandler : ITypeDefinitionHandler
 {
-    Task<LocationOrLocationLinks?> IRequestHandler<TypeDefinitionParams, LocationOrLocationLinks?>.Handle(TypeDefinitionParams request, CancellationToken cancellationToken) => Task.Run(() =>
+    public async Task<LocationOrLocationLinks?> Handle(TypeDefinitionParams request, CancellationToken cancellationToken)
     {
         Logger.Debug($"[Handler] TypeDefinition ({request.TextDocument}:{request.Position.ToStringMin()})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
+        if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument, out DocumentBase? document)) return null;
 
         try
         {
-            return OmniSharpService.Instance.Documents.Get(request.TextDocument)?.GotoTypeDefinition(request);
+            return await document.GotoTypeDefinition(request, cancellationToken).ConfigureAwait(false);
         }
         catch (ServiceException error)
         {
-            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
+            OmniSharpService.Instance.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
             return null;
         }
-    });
+    }
 
     public TypeDefinitionRegistrationOptions GetRegistrationOptions(TypeDefinitionCapability capability, ClientCapabilities clientCapabilities) => new()
     {

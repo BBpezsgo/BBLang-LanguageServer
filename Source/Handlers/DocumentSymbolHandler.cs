@@ -1,25 +1,24 @@
-using MediatR;
-
 namespace LanguageServer.Handlers;
 
 sealed class DocumentSymbolHandler : IDocumentSymbolHandler
 {
-    Task<SymbolInformationOrDocumentSymbolContainer?> IRequestHandler<DocumentSymbolParams, SymbolInformationOrDocumentSymbolContainer?>.Handle(DocumentSymbolParams request, CancellationToken cancellationToken) => Task.Run(() =>
+    public async Task<SymbolInformationOrDocumentSymbolContainer?> Handle(DocumentSymbolParams request, CancellationToken cancellationToken)
     {
         Logger.Debug($"[Handler] DocumentSymbol ({request.TextDocument})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
+        if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument, out DocumentBase? document)) return null;
 
         try
         {
-            return new SymbolInformationOrDocumentSymbolContainer(OmniSharpService.Instance.Documents.Get(request.TextDocument)?.Symbols(request) ?? Enumerable.Empty<SymbolInformationOrDocumentSymbol>());
+            return new SymbolInformationOrDocumentSymbolContainer(await document.Symbols(request, cancellationToken).ConfigureAwait(false) ?? Enumerable.Empty<SymbolInformationOrDocumentSymbol>());
         }
         catch (ServiceException error)
         {
-            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
+            OmniSharpService.Instance.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
             return null;
         }
-    });
+    }
 
     public DocumentSymbolRegistrationOptions GetRegistrationOptions(DocumentSymbolCapability capability, ClientCapabilities clientCapabilities)
     {

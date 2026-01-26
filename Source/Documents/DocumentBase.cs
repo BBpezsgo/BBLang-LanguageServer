@@ -77,18 +77,18 @@ abstract class DocumentBase
         LanguageId = e.TextDocument.GetExtension();
     }
 
-    public abstract Hover? Hover(HoverParams request);
-    public abstract IEnumerable<DocumentHighlight>? DocumentHighlight(DocumentHighlightParams request);
-    public abstract IEnumerable<CodeLens>? CodeLens(CodeLensParams request);
-    public abstract IEnumerable<Location>? References(ReferenceParams request);
-    public abstract SignatureHelp? SignatureHelp(SignatureHelpParams request);
-    public abstract void GetSemanticTokens(SemanticTokensBuilder builder, ITextDocumentIdentifierParams request);
-    public abstract IEnumerable<CompletionItem>? Completion(CompletionParams request);
-    public abstract LocationOrLocationLinks? GotoDefinition(DefinitionParams request);
-    public abstract LocationOrLocationLinks? GotoDeclaration(DeclarationParams request);
-    public abstract LocationOrLocationLinks? GotoTypeDefinition(TypeDefinitionParams request);
-    public abstract LocationOrLocationLinks? GotoImplementation(ImplementationParams request);
-    public abstract IEnumerable<SymbolInformationOrDocumentSymbol>? Symbols(DocumentSymbolParams request);
+    public virtual Task<Hover?> Hover(HoverParams request, CancellationToken cancellationToken) => Task.FromResult<Hover?>(null);
+    public virtual Task<IEnumerable<DocumentHighlight>?> DocumentHighlight(DocumentHighlightParams request, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<DocumentHighlight>?>(null);
+    public virtual Task<IEnumerable<CodeLens>?> CodeLens(CodeLensParams request, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<CodeLens>?>(null);
+    public virtual Task<IEnumerable<Location>?> References(ReferenceParams request, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<Location>?>(null);
+    public virtual Task<SignatureHelp?> SignatureHelp(SignatureHelpParams request, CancellationToken cancellationToken) => Task.FromResult<SignatureHelp?>(null);
+    public virtual Task GetSemanticTokens(SemanticTokensBuilder builder, ITextDocumentIdentifierParams request, CancellationToken cancellationToken) => Task.CompletedTask;
+    public virtual Task<IEnumerable<CompletionItem>?> Completion(CompletionParams request, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<CompletionItem>?>(null);
+    public virtual Task<LocationOrLocationLinks?> GotoDefinition(DefinitionParams request, CancellationToken cancellationToken) => Task.FromResult<LocationOrLocationLinks?>(null);
+    public virtual Task<LocationOrLocationLinks?> GotoDeclaration(DeclarationParams request, CancellationToken cancellationToken) => Task.FromResult<LocationOrLocationLinks?>(null);
+    public virtual Task<LocationOrLocationLinks?> GotoTypeDefinition(TypeDefinitionParams request, CancellationToken cancellationToken) => Task.FromResult<LocationOrLocationLinks?>(null);
+    public virtual Task<LocationOrLocationLinks?> GotoImplementation(ImplementationParams request, CancellationToken cancellationToken) => Task.FromResult<LocationOrLocationLinks?>(null);
+    public virtual Task<IEnumerable<SymbolInformationOrDocumentSymbol>?> Symbols(DocumentSymbolParams request, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<SymbolInformationOrDocumentSymbol>?>(null);
 
     public override string ToString() => $"{Path}";
 }

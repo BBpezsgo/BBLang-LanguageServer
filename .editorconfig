@@ -49,3 +49,6 @@ dotnet_style_namespace_match_folder = false
 
 # CA1812
 dotnet_diagnostic.CA1812.severity = silent
+
+# VSTHRD200: Use "Async" suffix for async methods
+dotnet_diagnostic.VSTHRD200.severity = none

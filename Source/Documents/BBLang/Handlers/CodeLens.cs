@@ -1,0 +1,86 @@
+using LanguageCore.Compiler;
+using LanguageCore.Parser;
+
+namespace LanguageServer.DocumentManagers;
+
+sealed partial class DocumentBBLang
+{
+    public override async Task<IEnumerable<CodeLens>?> CodeLens(CodeLensParams e, CancellationToken cancellationToken)
+    {
+        await AwaitForCompilation(Version ?? 0, cancellationToken).ConfigureAwait(false);
+
+        List<CodeLens> result = new();
+
+        foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
+        {
+            if (function.File != Uri) continue;
+
+            result.Add(new CodeLens()
+            {
+                Range = function.Identifier.Position.Range.ToOmniSharp(),
+                Command = new Command()
+                {
+                    Title = $"{function.References.DistinctBy(v => v.Source).Count(v => v.SourceFile != null)} reference",
+                },
+            });
+        }
+
+        foreach (CompiledGeneralFunctionDefinition function in CompilerResult.GeneralFunctionDefinitions)
+        {
+            if (function.File != Uri) continue;
+
+            result.Add(new CodeLens()
+            {
+                Range = function.Identifier.Position.Range.ToOmniSharp(),
+                Command = new Command()
+                {
+                    Title = $"{function.References.DistinctBy(v => v.Source).Count(v => v.SourceFile != null)} reference",
+                },
+            });
+        }
+
+        foreach (CompiledOperatorDefinition function in CompilerResult.OperatorDefinitions)
+        {
+            if (function.File != Uri) continue;
+
+            result.Add(new CodeLens()
+            {
+                Range = function.Identifier.Position.Range.ToOmniSharp(),
+                Command = new Command()
+                {
+                    Title = $"{function.References.DistinctBy(v => v.Source).Count(v => v.SourceFile != null)} reference",
+                },
+            });
+        }
+
+        foreach (CompiledConstructorDefinition function in CompilerResult.ConstructorDefinitions)
+        {
+            if (function.File != Uri) continue;
+
+            result.Add(new CodeLens()
+            {
+                Range = (function as ConstructorDefinition).Type.Position.Range.ToOmniSharp(),
+                Command = new Command()
+                {
+                    Title = $"{function.References.DistinctBy(v => v.Source).Count(v => v.SourceFile != null)} reference",
+                },
+            });
+        }
+
+        foreach (CompiledStruct @struct in CompilerResult.Structs)
+        {
+            if (@struct.File != Uri) continue;
+
+            result.Add(new CodeLens()
+            {
+                Range = @struct.Identifier.Position.Range.ToOmniSharp(),
+                Command = new Command()
+                {
+                    Title = $"{@struct.References.DistinctBy(v => v.Source).Count(v => v.SourceFile != null)} reference",
+                },
+            });
+        }
+
+        return result;
+    }
+}

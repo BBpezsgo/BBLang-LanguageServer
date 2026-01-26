@@ -1,0 +1,278 @@
+using System.Collections.Immutable;
+using LanguageCore;
+using LanguageCore.Compiler;
+using LanguageCore.Parser;
+using LanguageCore.Parser.Statements;
+
+namespace LanguageServer.DocumentManagers;
+
+sealed partial class DocumentBBLang
+{
+    public override async Task<IEnumerable<CompletionItem>?> Completion(CompletionParams e, CancellationToken cancellationToken)
+    {
+        await AwaitForCompilation(Version ?? 0, cancellationToken).ConfigureAwait(false);
+
+        List<CompletionItem> result = new();
+
+        void AddTypeItems()
+        {
+            foreach (CompiledStruct @struct in CompilerResult.Structs)
+            {
+                if (!@struct.CanUse(Uri))
+                { continue; }
+
+                result.Add(new CompletionItem()
+                {
+                    Kind = CompletionItemKind.Struct,
+                    Label = @struct.Identifier.Content,
+                });
+            }
+
+            foreach (CompiledAlias alias in CompilerResult.Aliases)
+            {
+                if (!alias.CanUse(Uri)) continue;
+
+                result.Add(new CompletionItem()
+                {
+                    Kind = CompletionItemKind.Class,
+                    Label = alias.Identifier.Content,
+                    LabelDetails = new CompletionItemLabelDetails()
+                    {
+                        Detail = $" = {alias.Value}",
+                    },
+                });
+            }
+
+            result.AddRange(TypeKeywords.List.Select(v => new CompletionItem() { Kind = CompletionItemKind.Keyword, Label = v }));
+        }
+
+        Logger.Debug($"Completion {(e.Context is null ? "null" : $"{e.Context.TriggerKind} {e.Context.TriggerCharacter}")}");
+
+        SinglePosition p = e.Position.ToCool();
+
+        foreach (AttributeUsage? attribute in
+            AST.AliasDefinitions.Cast<IHaveAttributes>()
+            .Append(AST.Structs)
+            .Append(AST.Functions)
+            .Append(AST.Operators)
+            .Append(AST.EnumerateStatements().OfType<IHaveAttributes>())
+            .SelectMany(v => v.Attributes)
+        )
+        {
+            if (attribute.Identifier.Position.Range.Contains(p))
+            {
+                foreach (string item in AttributeConstants.List)
+                {
+                    result.Add(new CompletionItem()
+                    {
+                        Label = item,
+                        Kind = CompletionItemKind.Class,
+                    });
+                }
+                return result;
+            }
+
+            if (attribute.Brackets.Position.Range.Contains(p))
+            {
+                return result;
+            }
+        }
+
+        foreach (Statement statement in AST.EnumerateStatements().Where(v => v.Position.Range.Contains(p)))
+        {
+            Logger.Debug($"# {statement.GetType().Name} {statement}");
+
+            if (statement is AnyCallExpression anyCallExpression
+                && anyCallExpression.Expression is FieldExpression fieldExpression1)
+            {
+                Logger.Debug(fieldExpression1.Identifier.Position.Range);
+                Logger.Debug(p);
+                Logger.Debug($" -> {anyCallExpression.Expression.GetType().Name} {anyCallExpression.Expression}");
+            }
+
+            if (statement is FieldExpression fieldExpression
+                && fieldExpression.Identifier.Position.Range.Contains(p))
+            {
+                if (fieldExpression.Object.CompiledType is not null)
+                {
+                    List<GeneralType> checkTypes = new();
+
+                    {
+                        GeneralType prevType = fieldExpression.Object.CompiledType;
+                        checkTypes.Add(new PointerType(prevType));
+                        checkTypes.Add(prevType);
+                        while (prevType.Is(out PointerType? pointerType2))
+                        {
+                            prevType = pointerType2.To;
+                            checkTypes.Add(prevType);
+                        }
+                    }
+
+                    Dictionary<string, List<(CompiledFunctionDefinition Function, ImmutableDictionary<string, GeneralType>? TypeArguments)>> functionOverloads = new();
+
+                    foreach (GeneralType prevType in checkTypes)
+                    {
+                        if (prevType.Is(out StructType? structType))
+                        {
+                            foreach (CompiledField field in structType.Struct.Fields)
+                            {
+                                result.Add(new CompletionItem()
+                                {
+                                    Kind = CompletionItemKind.Field,
+                                    Label = field.Identifier.Content,
+                                    LabelDetails = new CompletionItemLabelDetails()
+                                    {
+                                        Description = GeneralType.TryInsertTypeParameters(field.Type, structType.TypeArguments).ToString(),
+                                    },
+                                });
+                            }
+                        }
+
+                        foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
+                        {
+                            if (!function.CanUse(Uri)) continue;
+                            if (function.Parameters.Length <= 0) continue;
+                            if (!function.Parameters[0].IsThis) continue;
+                            if (!function.Parameters[0].Type.SameAs(prevType)) continue;
+
+                            if (!functionOverloads.TryGetValue(function.Identifier.Content, out var overloads))
+                            { overloads = functionOverloads[function.Identifier.Content] = new(); }
+                            overloads.Add((function, (prevType.Is(out StructType? w) && function.Context == w.Struct) ? w.TypeArguments : null));
+                        }
+                    }
+
+                    foreach ((string function, var overloads) in functionOverloads)
+                    {
+                        result.Add(new CompletionItem()
+                        {
+                            Kind = CompletionItemKind.Function,
+                            Label = function,
+                            LabelDetails = new CompletionItemLabelDetails()
+                            {
+                                Description = overloads.Count switch
+                                {
+                                    0 => null,
+                                    1 => GeneralType.TryInsertTypeParameters(overloads[0].Function.Type, overloads[0].TypeArguments).ToString(),
+                                    _ => $"{overloads.Count} overloads",
+                                },
+                            },
+                        });
+                    }
+
+                    return result;
+                }
+                else
+                {
+                    Logger.Warn($"Missing type on {fieldExpression.Object.GetType().Name} {fieldExpression.Object}");
+                }
+            }
+
+            if (statement is NewInstanceExpression newInstanceExpression
+                && newInstanceExpression.Type.Position.Range.Contains(p))
+            {
+                AddTypeItems();
+                return result;
+            }
+        }
+
+        {
+            Dictionary<string, List<CompiledFunctionDefinition>> functionOverloads = new();
+
+            foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
+            {
+                if (!function.CanUse(Uri)) continue;
+
+                if (!functionOverloads.TryGetValue(function.Identifier.Content, out var overloads))
+                { overloads = functionOverloads[function.Identifier.Content] = new(); }
+                overloads.Add(function);
+            }
+
+            foreach ((string function, var overloads) in functionOverloads)
+            {
+                result.Add(new CompletionItem()
+                {
+                    Kind = CompletionItemKind.Function,
+                    Label = function,
+                    LabelDetails = new CompletionItemLabelDetails()
+                    {
+                        Description = overloads.Count switch
+                        {
+                            0 => null,
+                            1 => overloads[0].Type.ToString(),
+                            _ => $"{overloads.Count} overloads",
+                        },
+                    },
+                });
+            }
+        }
+
+        foreach ((ImmutableArray<Statement> statements, _) in CompilerResult.RawStatements)
+        {
+            foreach (VariableDefinition statement in statements.OfType<VariableDefinition>())
+            {
+                if (!statement.CanUse(e.TextDocument.Uri.ToUri()))
+                { continue; }
+
+                if (statement.Modifiers.Contains(ModifierKeywords.Const))
+                {
+                    result.Add(new CompletionItem()
+                    {
+                        Kind = CompletionItemKind.Constant,
+                        Label = statement.Identifier.Content,
+                        //LabelDetails = new CompletionItemLabelDetails()
+                        //{
+                        //    Description = statement.Type.ToString(),
+                        //},
+                    });
+                }
+                else
+                {
+                    result.Add(new CompletionItem()
+                    {
+                        Kind = CompletionItemKind.Variable,
+                        Label = statement.Identifier.Content,
+                        //LabelDetails = new CompletionItemLabelDetails()
+                        //{
+                        //    Description = statement.Type.ToString(),
+                        //},
+                    });
+                }
+            }
+        }
+
+        SinglePosition position = e.Position.ToCool();
+        foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
+        {
+            if (function.File != e.TextDocument.Uri.ToUri())
+            { continue; }
+
+            if (function.Block == null) continue;
+            if (function.Block.Position.Range.Contains(position))
+            {
+                foreach (CompiledParameter parameter in function.Parameters)
+                {
+                    result.Add(new CompletionItem()
+                    {
+                        Kind = CompletionItemKind.Variable,
+                        Label = parameter.Identifier.Content,
+                        LabelDetails = new CompletionItemLabelDetails()
+                        {
+                            Description = parameter.Type.ToString(),
+                        },
+                    });
+                }
+
+                break;
+            }
+        }
+
+        AddTypeItems();
+
+        result.AddRange(DeclarationKeywords.List.Select(v => new CompletionItem() { Kind = CompletionItemKind.Keyword, Label = v }));
+        result.AddRange(ProtectionKeywords.List.Select(v => new CompletionItem() { Kind = CompletionItemKind.Keyword, Label = v }));
+        result.AddRange(ModifierKeywords.List.Select(v => new CompletionItem() { Kind = CompletionItemKind.Keyword, Label = v }));
+        result.AddRange(StatementKeywords.List.Select(v => new CompletionItem() { Kind = CompletionItemKind.Keyword, Label = v }));
+
+        return result;
+    }
+}

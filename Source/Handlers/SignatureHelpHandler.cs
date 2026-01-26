@@ -2,22 +2,23 @@ namespace LanguageServer.Handlers;
 
 sealed class SignatureHelpHandler : ISignatureHelpHandler
 {
-    public Task<SignatureHelp?> Handle(SignatureHelpParams request, CancellationToken cancellationToken) => Task.Run(() =>
+    public async Task<SignatureHelp?> Handle(SignatureHelpParams request, CancellationToken cancellationToken)
     {
         Logger.Debug($"[Handler] SignatureHelp ({request.TextDocument}:{request.Position.ToStringMin()}) ({request.Context})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
+        if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument, out DocumentBase? document)) return null;
 
         try
         {
-            return OmniSharpService.Instance.Documents.Get(request.TextDocument)?.SignatureHelp(request);
+            return await document.SignatureHelp(request, cancellationToken).ConfigureAwait(false);
         }
         catch (ServiceException error)
         {
-            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
+            OmniSharpService.Instance.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
             return null;
         }
-    });
+    }
 
     public SignatureHelpRegistrationOptions GetRegistrationOptions(SignatureHelpCapability capability, ClientCapabilities clientCapabilities) => new()
     {

@@ -1,25 +1,24 @@
-using MediatR;
-
 namespace LanguageServer.Handlers;
 
 sealed class ImplementationHandler : IImplementationHandler
 {
-    Task<LocationOrLocationLinks?> IRequestHandler<ImplementationParams, LocationOrLocationLinks?>.Handle(ImplementationParams request, CancellationToken cancellationToken) => Task.Run(() =>
+    public async Task<LocationOrLocationLinks?> Handle(ImplementationParams request, CancellationToken cancellationToken)
     {
         Logger.Debug($"[Handler] Implementation ({request.TextDocument}:{request.Position.ToStringMin()})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
+        if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument, out DocumentBase? document)) return null;
 
         try
         {
-            return OmniSharpService.Instance.Documents.Get(request.TextDocument)?.GotoImplementation(request);
+            return await document.GotoImplementation(request, cancellationToken).ConfigureAwait(false);
         }
         catch (ServiceException error)
         {
-            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
+            OmniSharpService.Instance.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
             return null;
         }
-    });
+    }
 
     public ImplementationRegistrationOptions GetRegistrationOptions(ImplementationCapability capability, ClientCapabilities clientCapabilities) => new()
     {

@@ -1,25 +1,24 @@
-using MediatR;
-
 namespace LanguageServer.Handlers;
 
 sealed class CompletionHandler : ICompletionHandler
 {
-    Task<CompletionList> IRequestHandler<CompletionParams, CompletionList>.Handle(CompletionParams request, CancellationToken cancellationToken) => Task.Run(() =>
+    public async Task<CompletionList> Handle(CompletionParams request, CancellationToken cancellationToken)
     {
         Logger.Debug($"[Handler] Completion ({request.TextDocument}:{request.Position.ToStringMin()}) ({request.Context})");
 
         if (OmniSharpService.Instance?.Server == null) return new CompletionList();
+        if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument, out DocumentBase? document)) return new CompletionList();
 
         try
         {
-            return new CompletionList(OmniSharpService.Instance.Documents.Get(request.TextDocument)?.Completion(request) ?? Enumerable.Empty<CompletionItem>());
+            return new CompletionList(await document.Completion(request, cancellationToken).ConfigureAwait(false) ?? Enumerable.Empty<CompletionItem>());
         }
         catch (ServiceException error)
         {
-            OmniSharpService.Instance?.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
+            OmniSharpService.Instance.Server?.Window?.ShowWarning($"BBLang ServiceException: {error.Message}");
             return new CompletionList();
         }
-    });
+    }
 
     public CompletionRegistrationOptions GetRegistrationOptions(CompletionCapability capability, ClientCapabilities clientCapabilities)
     {

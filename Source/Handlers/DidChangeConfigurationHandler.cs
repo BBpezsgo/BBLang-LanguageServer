@@ -5,7 +5,7 @@ namespace LanguageServer.Handlers;
 
 sealed class DidChangeConfigurationHandler : IDidChangeConfigurationHandler
 {
-    Task<Unit> IRequestHandler<DidChangeConfigurationParams, Unit>.Handle(DidChangeConfigurationParams request, CancellationToken cancellationToken) => Task.Run(() =>
+    public Task<Unit> Handle(DidChangeConfigurationParams request, CancellationToken cancellationToken) => Task.Run(() =>
     {
         Logger.Debug($"[Handler] ConfigurationChanged");
 
@@ -15,5 +15,7 @@ sealed class DidChangeConfigurationHandler : IDidChangeConfigurationHandler
     });
 
     public void SetCapability(DidChangeConfigurationCapability capability, ClientCapabilities clientCapabilities)
-    { }
+    {
+
+    }
 }

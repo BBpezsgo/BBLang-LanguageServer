@@ -13,12 +13,13 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
         _documents = new List<DocumentBase>();
     }
 
-    /// <exception cref="ServiceException"/>
     public static DocumentBase GenerateDocument(DocumentUri uri, string? content, string languageId, Documents documentInterface) => languageId switch
     {
         LanguageConstants.LanguageId => new DocumentBBLang(uri, content, languageId, documentInterface),
         _ => throw new ServiceException($"Unknown language \"{languageId}\"")
     };
+
+    public bool TryGet(TextDocumentIdentifier identifier, [NotNullWhen(true)] out DocumentBase? document) => TryGet(identifier.Uri, out document);
 
     public bool TryGet(DocumentUri uri, [NotNullWhen(true)] out DocumentBase? document)
     {
@@ -63,7 +64,6 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
     public DocumentBase? Get(TextDocumentIdentifier documentId)
         => TryGet(documentId.Uri, out DocumentBase? document) ? document : null;
 
-    /// <exception cref="ServiceException"/>
     public DocumentBase GetOrCreate(TextDocumentIdentifier documentId, string? content = null)
     {
         RemoveDuplicates();
