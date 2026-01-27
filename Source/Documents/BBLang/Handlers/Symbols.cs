@@ -1,4 +1,7 @@
+using LanguageCore;
 using LanguageCore.Compiler;
+using LanguageCore.Parser;
+using LanguageCore.Parser.Statements;
 using OmniSharpLocation = OmniSharp.Extensions.LanguageServer.Protocol.Models.Location;
 
 namespace LanguageServer.DocumentManagers;
@@ -11,71 +14,132 @@ sealed partial class DocumentBBLang
 
         List<SymbolInformationOrDocumentSymbol> result = new();
 
-        foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
+        foreach (FunctionDefinition function in AST.Functions)
         {
-            DocumentUri? uri = function.File is null ? null : (DocumentUri)function.File;
-            if (uri is not null && !uri.Equals(e.TextDocument.Uri)) continue;
+            if (function.File != e.TextDocument.Uri) continue;
 
-            result.Add(new SymbolInformation()
+            result.Add(new DocumentSymbol()
             {
                 Kind = SymbolKind.Function,
                 Name = function.Identifier.Content,
-                Location = new OmniSharpLocation()
-                {
-                    Range = function.Position.Range.ToOmniSharp(),
-                    Uri = uri ?? e.TextDocument.Uri,
-                },
+                Range = function.Position.Range.ToOmniSharp(),
+                SelectionRange = function.Identifier.Position.Range.ToOmniSharp(),
+                Detail = function.ToReadable(),
             });
         }
 
-        foreach (CompiledOperatorDefinition function in CompilerResult.OperatorDefinitions)
+        foreach (FunctionDefinition function in AST.Operators)
         {
-            DocumentUri? uri = function.File is null ? null : (DocumentUri)function.File;
-            if (uri is not null && !uri.Equals(e.TextDocument.Uri)) continue;
+            if (function.File != e.TextDocument.Uri) continue;
 
-            result.Add(new SymbolInformation()
+            result.Add(new DocumentSymbol()
             {
                 Kind = SymbolKind.Function,
                 Name = function.Identifier.Content,
-                Location = new OmniSharpLocation()
-                {
-                    Range = function.Position.Range.ToOmniSharp(),
-                    Uri = uri ?? e.TextDocument.Uri,
-                },
+                Range = function.Position.Range.ToOmniSharp(),
+                SelectionRange = function.Identifier.Position.Range.ToOmniSharp(),
+                Detail = function.ToReadable(),
             });
         }
 
-        foreach (CompiledGeneralFunctionDefinition function in CompilerResult.GeneralFunctionDefinitions)
+        foreach (StructDefinition @struct in AST.Structs)
         {
-            DocumentUri? uri = function.File is null ? null : (DocumentUri)function.File;
-            if (uri is not null && !uri.Equals(e.TextDocument.Uri)) continue;
+            if (@struct.File != e.TextDocument.Uri) continue;
 
-            result.Add(new SymbolInformation()
+            List<DocumentSymbol> children = new();
+
+            foreach (FunctionDefinition function in @struct.Functions)
             {
-                Kind = SymbolKind.Function,
-                Name = function.Identifier.Content,
-                Location = new OmniSharpLocation()
+                children.Add(new DocumentSymbol()
                 {
+                    Kind = SymbolKind.Method,
+                    Name = function.Identifier.Content,
                     Range = function.Position.Range.ToOmniSharp(),
-                    Uri = uri ?? e.TextDocument.Uri,
-                },
-            });
-        }
+                    SelectionRange = function.Identifier.Position.Range.ToOmniSharp(),
+                    Detail = function.ToReadable(),
+                });
+            }
 
-        foreach (CompiledStruct @struct in CompilerResult.Structs)
-        {
-            DocumentUri? uri = @struct.File is null ? null : (DocumentUri)@struct.File;
-            if (uri is not null && !uri.Equals(e.TextDocument.Uri)) continue;
+            foreach (FunctionDefinition function in @struct.Operators)
+            {
+                children.Add(new DocumentSymbol()
+                {
+                    Kind = SymbolKind.Operator,
+                    Name = function.Identifier.Content,
+                    Range = function.Position.Range.ToOmniSharp(),
+                    SelectionRange = function.Identifier.Position.Range.ToOmniSharp(),
+                    Detail = function.ToReadable(),
+                });
+            }
 
-            result.Add(new SymbolInformation()
+            foreach (GeneralFunctionDefinition function in @struct.GeneralFunctions)
+            {
+                children.Add(new DocumentSymbol()
+                {
+                    Kind = SymbolKind.Function,
+                    Name = function.Identifier.Content,
+                    Range = function.Position.Range.ToOmniSharp(),
+                    SelectionRange = function.Identifier.Position.Range.ToOmniSharp(),
+                    Detail = function.ToReadable(),
+                });
+            }
+
+            foreach (ConstructorDefinition function in @struct.Constructors)
+            {
+                children.Add(new DocumentSymbol()
+                {
+                    Kind = SymbolKind.Constructor,
+                    Name = function.Identifier.Content,
+                    Range = function.Position.Range.ToOmniSharp(),
+                    SelectionRange = function.Identifier.Position.Range.ToOmniSharp(),
+                    Detail = function.ToReadable(),
+                });
+            }
+
+            foreach (FieldDefinition field in @struct.Fields)
+            {
+                children.Add(new DocumentSymbol()
+                {
+                    Kind = SymbolKind.Field,
+                    Name = field.Identifier.Content,
+                    Range = field.Position.Range.ToOmniSharp(),
+                    SelectionRange = field.Identifier.Position.Range.ToOmniSharp(),
+                });
+            }
+
+            result.Add(new DocumentSymbol()
             {
                 Kind = SymbolKind.Struct,
                 Name = @struct.Identifier.Content,
-                Location = new OmniSharpLocation()
-                {
-                    Range = @struct.Position.ToOmniSharp(),
-                    Uri = uri ?? e.TextDocument.Uri,
-                },
+                Range = @struct.Position.Range.ToOmniSharp(),
+                SelectionRange = @struct.Identifier.Position.Range.ToOmniSharp(),
+                Children = children,
+            });
+        }
+
+        foreach (AliasDefinition alias in AST.AliasDefinitions)
+        {
+            if (alias.File != e.TextDocument.Uri) continue;
+
+            result.Add(new DocumentSymbol()
+            {
+                Kind = SymbolKind.Class,
+                Name = alias.Identifier.Content,
+                Range = alias.Position.Range.ToOmniSharp(),
+                SelectionRange = alias.Identifier.Position.Range.ToOmniSharp(),
+            });
+        }
+
+        foreach (VariableDefinition variable in AST.TopLevelStatements.OfType<VariableDefinition>())
+        {
+            if (variable.File != e.TextDocument.Uri) continue;
+
+            result.Add(new DocumentSymbol()
+            {
+                Kind = variable.Modifiers.Contains(ModifierKeywords.Const) ? SymbolKind.Constant : SymbolKind.Variable,
+                Name = variable.Identifier.Content,
+                Range = variable.Position.ToOmniSharp(),
+                SelectionRange = variable.Identifier.Position.Range.ToOmniSharp(),
             });
         }
 
