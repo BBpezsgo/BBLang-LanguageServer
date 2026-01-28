@@ -5,6 +5,7 @@ using LanguageCore.Compiler;
 using LanguageCore.Parser;
 using LanguageCore.Tokenizing;
 using LanguageCore.Workspaces;
+using Diagnostic = LanguageCore.Diagnostic;
 
 namespace LanguageServer.DocumentManagers;
 
@@ -106,7 +107,7 @@ sealed partial class DocumentBBLang : DocumentBase
                 {
                     compilerResult = StatementCompiler.CompileFiles(Documents.Select(v => v.Uri.ToString()).ToArray(), compilerSettings, diagnostics);
                 }
-                catch (LanguageException languageException)
+                catch (LanguageExceptionAt languageException)
                 {
                     diagnostics.Add(languageException.ToDiagnostic());
                 }
@@ -121,7 +122,7 @@ sealed partial class DocumentBBLang : DocumentBase
             }
             else if (Content is not null)
             {
-                TokenizerResult tokens = Tokenizer.Tokenize(Content, diagnostics, compilerSettings.PreprocessorVariables, Uri, compilerSettings.TokenizerSettings);
+                TokenizerResult tokens = Tokenizer.Tokenize(Content, diagnostics, Uri, compilerSettings.PreprocessorVariables, compilerSettings.TokenizerSettings);
                 ParserResult ast = Parser.Parse(tokens.Tokens, Uri, diagnostics);
                 Tokens = !ast.Tokens.IsDefault ? ast.Tokens : !tokens.Tokens.IsDefault ? tokens.Tokens : ImmutableArray<Token>.Empty;
                 AST = ast.IsNotEmpty ? ast : AST;
@@ -133,46 +134,56 @@ sealed partial class DocumentBBLang : DocumentBase
                 compiledFiles = new();
             }
 
-            foreach (DiagnosticWithoutContext item in diagnostics.DiagnosticsWithoutContext)
+            foreach (Diagnostic item in diagnostics.DiagnosticsWithoutContext)
             {
                 Logger.Error(item.ToString());
             }
 
             Dictionary<Uri, List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>> diagnosticsPerFile = new();
 
-            static string GetFullMessage(LanguageCore.Diagnostic diagnostic, int indent)
+            static string GetFullMessage(Diagnostic diagnostic, int indent)
             {
                 string result = $"{diagnostic.Message}";
-                foreach (LanguageCore.Diagnostic item in diagnostic.SubErrors)
+                foreach (Diagnostic item in diagnostic.SubErrors)
                 {
                     result += $"\n{new string(' ', indent)} -> {GetFullMessage(item, indent + 2)}";
                 }
                 return result;
             }
 
-            void CompileDiagnostic(LanguageCore.Diagnostic diagnostic, Dictionary<Uri, List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>> diagnosticsPerFile)
+            static void CompileDiagnostic(Diagnostic diagnostic, Dictionary<Uri, List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>> diagnosticsPerFile)
             {
-                if (diagnostic.File is null) return;
-
-                if (!diagnosticsPerFile.TryGetValue(diagnostic.File, out List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>? container))
-                { container = diagnosticsPerFile[diagnostic.File] = new(); }
-
-                container.Add(new OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic()
+                if (diagnostic is DiagnosticAt diagnosticWithPosition)
                 {
-                    Severity = diagnostic.Level.ToOmniSharp(),
-                    Range = diagnostic.Position.ToOmniSharp(),
-                    Message = GetFullMessage(diagnostic, 0),
-                    Source = diagnostic.File.ToString(),
-                });
+                    if (diagnosticWithPosition.File is null) return;
 
-                foreach (LanguageCore.Diagnostic item in diagnostic.SubErrors)
+                    if (!diagnosticsPerFile.TryGetValue(diagnosticWithPosition.File, out List<OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic>? container))
+                    { container = diagnosticsPerFile[diagnosticWithPosition.File] = new(); }
+
+                    container.Add(new OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic()
+                    {
+                        Severity = diagnosticWithPosition.Level.ToOmniSharp(),
+                        Range = diagnosticWithPosition.Position.ToOmniSharp(),
+                        Message = GetFullMessage(diagnosticWithPosition, 0),
+                        Source = diagnosticWithPosition.File.ToString(),
+                    });
+
+                    foreach (Diagnostic item in diagnostic.SubErrors)
+                    {
+                        if (item is DiagnosticAt diagnosticWithPosition2 && diagnosticWithPosition2.Location.Equals(diagnosticWithPosition.Location)) continue;
+                        CompileDiagnostic(item, diagnosticsPerFile);
+                    }
+                }
+                else
                 {
-                    if (item.Position.Equals(diagnostic.Position) && item.File == diagnostic.File) continue;
-                    CompileDiagnostic(item, diagnosticsPerFile);
+                    foreach (Diagnostic item in diagnostic.SubErrors)
+                    {
+                        CompileDiagnostic(item, diagnosticsPerFile);
+                    }
                 }
             }
 
-            foreach (LanguageCore.Diagnostic diagnostic in diagnostics.Diagnostics)
+            foreach (DiagnosticAt diagnostic in diagnostics.Diagnostics)
             {
                 CompileDiagnostic(diagnostic, diagnosticsPerFile);
             }

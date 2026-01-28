@@ -12,7 +12,7 @@ namespace LanguageServer.DocumentManagers;
 sealed partial class DocumentBBLang
 {
     static string GetFunctionHover<TFunction>(TFunction function, ImmutableDictionary<string, GeneralType>? typeArguments)
-        where TFunction : FunctionThingDefinition, ICompiledFunctionDefinition, IReadable
+        where TFunction : FunctionThingDefinition, ICompiledFunctionDefinition
     {
         StringBuilder builder = new();
 
@@ -97,7 +97,7 @@ sealed partial class DocumentBBLang
     }
 
     bool HandleDefinitionHover<TFunction>(StatementCompiler.FunctionQueryResult<TFunction> function, ref string? definitionHover, ref string? docsHover)
-        where TFunction : FunctionThingDefinition, ICompiledFunctionDefinition, IReadable
+        where TFunction : FunctionThingDefinition, ICompiledFunctionDefinition
     {
         if (function.OriginalFunction.File is null)
         { return false; }
@@ -128,7 +128,7 @@ sealed partial class DocumentBBLang
     };
 
     bool HandleDefinitionHover<TFunction>(TFunction function, ref string? definitionHover, ref string? docsHover)
-        where TFunction : FunctionThingDefinition, ICompiledFunctionDefinition, IReadable
+        where TFunction : FunctionThingDefinition, ICompiledFunctionDefinition
     {
         if (function.File is null)
         { return false; }

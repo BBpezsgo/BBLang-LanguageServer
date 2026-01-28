@@ -52,3 +52,6 @@ dotnet_diagnostic.CA1812.severity = silent
 
 # VSTHRD200: Use "Async" suffix for async methods
 dotnet_diagnostic.VSTHRD200.severity = none
+
+# IDE0220: Add explicit cast
+dotnet_diagnostic.IDE0220.severity = error
