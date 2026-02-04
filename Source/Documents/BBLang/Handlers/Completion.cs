@@ -46,6 +46,100 @@ sealed partial class DocumentBBLang
             result.AddRange(TypeKeywords.List.Select(v => new CompletionItem() { Kind = CompletionItemKind.Keyword, Label = v }));
         }
 
+        void AddExpressionItems()
+        {
+            {
+                Dictionary<string, List<CompiledFunctionDefinition>> functionOverloads = new();
+
+                foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
+                {
+                    if (!function.CanUse(Uri)) continue;
+
+                    if (!functionOverloads.TryGetValue(function.Identifier.Content, out var overloads))
+                    { overloads = functionOverloads[function.Identifier.Content] = new(); }
+                    overloads.Add(function);
+                }
+
+                foreach ((string function, var overloads) in functionOverloads)
+                {
+                    result.Add(new CompletionItem()
+                    {
+                        Kind = CompletionItemKind.Function,
+                        Label = function,
+                        LabelDetails = new CompletionItemLabelDetails()
+                        {
+                            Description = overloads.Count switch
+                            {
+                                0 => null,
+                                1 => overloads[0].Type.ToString(),
+                                _ => $"{overloads.Count} overloads",
+                            },
+                        },
+                    });
+                }
+            }
+
+            foreach ((ImmutableArray<Statement> statements, _) in CompilerResult.RawStatements)
+            {
+                foreach (VariableDefinition statement in statements.OfType<VariableDefinition>())
+                {
+                    if (!statement.CanUse(e.TextDocument.Uri.ToUri()))
+                    { continue; }
+
+                    if (statement.Modifiers.Contains(ModifierKeywords.Const))
+                    {
+                        result.Add(new CompletionItem()
+                        {
+                            Kind = CompletionItemKind.Constant,
+                            Label = statement.Identifier.Content,
+                            //LabelDetails = new CompletionItemLabelDetails()
+                            //{
+                            //    Description = statement.Type.ToString(),
+                            //},
+                        });
+                    }
+                    else
+                    {
+                        result.Add(new CompletionItem()
+                        {
+                            Kind = CompletionItemKind.Variable,
+                            Label = statement.Identifier.Content,
+                            //LabelDetails = new CompletionItemLabelDetails()
+                            //{
+                            //    Description = statement.Type.ToString(),
+                            //},
+                        });
+                    }
+                }
+            }
+
+            SinglePosition position = e.Position.ToCool();
+            foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
+            {
+                if (function.File != e.TextDocument.Uri.ToUri())
+                { continue; }
+
+                if (function.Block == null) continue;
+                if (function.Block.Position.Range.Contains(position))
+                {
+                    foreach (CompiledParameter parameter in function.Parameters)
+                    {
+                        result.Add(new CompletionItem()
+                        {
+                            Kind = CompletionItemKind.Variable,
+                            Label = parameter.Identifier.Content,
+                            LabelDetails = new CompletionItemLabelDetails()
+                            {
+                                Description = parameter.Type.ToString(),
+                            },
+                        });
+                    }
+
+                    break;
+                }
+            }
+        }
+
         Logger.Debug($"Completion {(e.Context is null ? "null" : $"{e.Context.TriggerKind} {e.Context.TriggerCharacter}")}");
 
         SinglePosition p = e.Position.ToCool();
@@ -173,98 +267,15 @@ sealed partial class DocumentBBLang
                 AddTypeItems();
                 return result;
             }
-        }
 
-        {
-            Dictionary<string, List<CompiledFunctionDefinition>> functionOverloads = new();
-
-            foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
+            if (statement is MissingExpression)
             {
-                if (!function.CanUse(Uri)) continue;
-
-                if (!functionOverloads.TryGetValue(function.Identifier.Content, out var overloads))
-                { overloads = functionOverloads[function.Identifier.Content] = new(); }
-                overloads.Add(function);
-            }
-
-            foreach ((string function, var overloads) in functionOverloads)
-            {
-                result.Add(new CompletionItem()
-                {
-                    Kind = CompletionItemKind.Function,
-                    Label = function,
-                    LabelDetails = new CompletionItemLabelDetails()
-                    {
-                        Description = overloads.Count switch
-                        {
-                            0 => null,
-                            1 => overloads[0].Type.ToString(),
-                            _ => $"{overloads.Count} overloads",
-                        },
-                    },
-                });
+                AddExpressionItems();
+                return result;
             }
         }
 
-        foreach ((ImmutableArray<Statement> statements, _) in CompilerResult.RawStatements)
-        {
-            foreach (VariableDefinition statement in statements.OfType<VariableDefinition>())
-            {
-                if (!statement.CanUse(e.TextDocument.Uri.ToUri()))
-                { continue; }
-
-                if (statement.Modifiers.Contains(ModifierKeywords.Const))
-                {
-                    result.Add(new CompletionItem()
-                    {
-                        Kind = CompletionItemKind.Constant,
-                        Label = statement.Identifier.Content,
-                        //LabelDetails = new CompletionItemLabelDetails()
-                        //{
-                        //    Description = statement.Type.ToString(),
-                        //},
-                    });
-                }
-                else
-                {
-                    result.Add(new CompletionItem()
-                    {
-                        Kind = CompletionItemKind.Variable,
-                        Label = statement.Identifier.Content,
-                        //LabelDetails = new CompletionItemLabelDetails()
-                        //{
-                        //    Description = statement.Type.ToString(),
-                        //},
-                    });
-                }
-            }
-        }
-
-        SinglePosition position = e.Position.ToCool();
-        foreach (CompiledFunctionDefinition function in CompilerResult.FunctionDefinitions)
-        {
-            if (function.File != e.TextDocument.Uri.ToUri())
-            { continue; }
-
-            if (function.Block == null) continue;
-            if (function.Block.Position.Range.Contains(position))
-            {
-                foreach (CompiledParameter parameter in function.Parameters)
-                {
-                    result.Add(new CompletionItem()
-                    {
-                        Kind = CompletionItemKind.Variable,
-                        Label = parameter.Identifier.Content,
-                        LabelDetails = new CompletionItemLabelDetails()
-                        {
-                            Description = parameter.Type.ToString(),
-                        },
-                    });
-                }
-
-                break;
-            }
-        }
+        AddExpressionItems();
 
         AddTypeItems();
 
