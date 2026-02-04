@@ -10,44 +10,50 @@ namespace LanguageServer.DocumentManagers;
 
 sealed partial class DocumentBBLang
 {
-    bool GetGotoDefinition(object? reference, [NotNullWhen(true)] out LocationLink? result)
+    static bool GetGotoDefinition(object? reference, [NotNullWhen(true)] out LocationLink? result)
     {
         result = null;
-        if (reference is null)
-        { return false; }
 
-        Uri file = Uri;
+        if (reference is null) return false;
 
-        if (reference is IInFile inFile)
+        if (reference is StatementCompiler.FunctionQueryResult<CompiledFunctionDefinition> function)
         {
-            if (inFile.File is null)
-            { return false; }
-            file = inFile.File;
+            reference = function.OriginalFunction;
         }
 
-        if (reference is IIdentifiable<Token> identifiable1)
+        Uri? file = reference switch
         {
-            result = new LocationLink()
-            {
-                TargetRange = identifiable1.Identifier.Position.ToOmniSharp(),
-                TargetSelectionRange = identifiable1.Identifier.Position.ToOmniSharp(),
-                TargetUri = DocumentUri.From(file),
-            };
-            return true;
+            IInFile inFile => inFile.File,
+            ILocated located1 => located1.Location.File,
+            _ => null,
+        };
+
+        if (file is null)
+        {
+            Logger.Warn($"Definition file is null");
+            return false;
         }
 
-        if (reference is ILocated located)
+        Position position = reference switch
         {
-            result = new LocationLink()
-            {
-                TargetRange = located.Location.Position.ToOmniSharp(),
-                TargetSelectionRange = located.Location.Position.ToOmniSharp(),
-                TargetUri = DocumentUri.From(located.Location.File),
-            };
-            return true;
+            IIdentifiable<Token> v => v.Identifier.Position,
+            ILocated v => v.Location.Position,
+            _ => Position.Zero,
+        };
+
+        if (position == Position.Zero || position == Position.UnknownPosition)
+        {
+            Logger.Warn($"Definition position is null");
+            return false;
         }
 
-        return false;
+        result = new LocationLink()
+        {
+            TargetRange = position.ToOmniSharp(),
+            TargetSelectionRange = position.ToOmniSharp(),
+            TargetUri = DocumentUri.From(file),
+        };
+        return true;
     }
 
     public override async Task<LocationOrLocationLinks?> GotoDefinition(DefinitionParams e, CancellationToken cancellationToken)
@@ -56,9 +62,11 @@ sealed partial class DocumentBBLang
 
         List<LocationOrLocationLink> links = new();
 
+        SinglePosition p = e.Position.ToCool();
+
         foreach (UsingDefinition @using in AST.Usings.IsDefault ? ImmutableArray<UsingDefinition>.Empty : AST.Usings)
         {
-            if (!@using.Position.Range.Contains(e.Position.ToCool()))
+            if (!@using.Position.Range.Contains(p))
             { continue; }
             if (@using.CompiledUri is null)
             { break; }
@@ -73,27 +81,57 @@ sealed partial class DocumentBBLang
             break;
         }
 
-        if (AST.GetStatementAt(e.Position.ToCool(), out Statement? statement))
+        Range<SinglePosition> range = default;
+        object? reference = null;
+
+        {
+            if (GetTypeInstanceAt(p, false, out var type)
+                && type is TypeInstanceSimple typeInstanceSimple)
+            {
+                range = typeInstanceSimple.Identifier.Position.Range;
+                reference = typeInstanceSimple.Reference;
+                goto _;
+            }
+        }
+
+        if (AST.GetStatementAt(p, out Statement? statement))
         {
             foreach (Statement item in StatementWalker.Visit(statement))
             {
-                Position from = Utils.GetInteractivePosition(item);
+                if (!item.Position.Range.Contains(p)) continue;
 
-                if (!from.Range.Contains(e.Position.ToCool()))
-                { continue; }
-
-                if (item is IReferenceableTo _ref1 &&
-                    GetGotoDefinition(_ref1.Reference, out LocationLink? link))
+                if (item is IReferenceableTo _ref1)
                 {
-                    links.Add(new LocationLink()
-                    {
-                        OriginSelectionRange = from.Range.ToOmniSharp(),
-                        TargetRange = link.TargetRange,
-                        TargetSelectionRange = link.TargetSelectionRange,
-                        TargetUri = link.TargetUri,
-                    });
+                    range = Utils.GetInteractivePosition(item).Range;
+                    if (!range.Contains(p)) continue;
+
+                    reference = _ref1.Reference;
+                    goto _;
+                }
+
+                if (item is IHaveType haveType
+                    && GetDeepestTypeInstance(haveType.Type, p) is TypeInstanceSimple typeInstanceSimple)
+                {
+                    range = typeInstanceSimple.Identifier.Position.Range;
+                    if (!range.Contains(p)) continue;
+
+                    reference = typeInstanceSimple.Reference;
+                    goto _;
                 }
             }
+        }
+
+    _:
+
+        if (GetGotoDefinition(reference, out LocationLink? link))
+        {
+            links.Add(new LocationLink()
+            {
+                OriginSelectionRange = range.ToOmniSharp(),
+                TargetRange = link.TargetRange,
+                TargetSelectionRange = link.TargetSelectionRange,
+                TargetUri = link.TargetUri,
+            });
         }
 
         return new LocationOrLocationLinks(links);

@@ -3,6 +3,7 @@ using System.Text;
 using LanguageCore;
 using LanguageCore.Compiler;
 using LanguageCore.Parser;
+using LanguageCore.Parser.Statements;
 using LanguageCore.Tokenizing;
 
 namespace LanguageServer.DocumentManagers;
@@ -174,5 +175,146 @@ sealed partial class DocumentBBLang
             default:
                 break;
         }
+    }
+
+    static TypeInstance GetDeepestTypeInstance(TypeInstance type, SinglePosition position)
+    {
+        GetDeepestTypeInstance(ref type, position);
+        return type;
+    }
+
+    static void GetDeepestTypeInstance(ref TypeInstance type, SinglePosition position)
+    {
+        switch (type)
+        {
+            case TypeInstanceSimple simpleType:
+                {
+                    if (simpleType.TypeArguments.HasValue)
+                    {
+                        for (int i = 0; i < simpleType.TypeArguments.Value.Length; i++)
+                        {
+                            TypeInstance? item = simpleType.TypeArguments.Value[i];
+                            if (item.Position.Range.Contains(position))
+                            {
+                                type = item;
+                                GetDeepestTypeInstance(ref type, position);
+                                return;
+                            }
+                        }
+                    }
+
+                    break;
+                }
+            case TypeInstancePointer pointerType:
+                {
+                    if (pointerType.To.Position.Range.Contains(position))
+                    {
+                        type = pointerType.To;
+                        GetDeepestTypeInstance(ref type, position);
+                        return;
+                    }
+
+                    break;
+                }
+            case TypeInstanceStackArray arrayType:
+                {
+                    if (arrayType.StackArrayOf.Position.Range.Contains(position))
+                    {
+                        type = arrayType.StackArrayOf;
+                        GetDeepestTypeInstance(ref type, position);
+                        return;
+                    }
+
+                    break;
+                }
+            case TypeInstanceFunction functionType:
+                {
+                    if (functionType.FunctionReturnType.Position.Range.Contains(position))
+                    {
+                        type = functionType.FunctionReturnType;
+                        GetDeepestTypeInstance(ref type, position);
+                        return;
+                    }
+
+                    for (int i = 0; i < functionType.FunctionParameterTypes.Length; i++)
+                    {
+                        if (functionType.FunctionParameterTypes[i].Position.Range.Contains(position))
+                        {
+                            type = functionType.FunctionParameterTypes[i];
+                            GetDeepestTypeInstance(ref type, position);
+                            return;
+                        }
+                    }
+
+                    break;
+                }
+            default:
+                break;
+        }
+    }
+
+    bool GetTypeInstanceAt(SinglePosition position, bool includeStatements, [NotNullWhen(true)] out TypeInstance? result)
+    {
+        foreach (TypeInstance type in
+            // Functions
+            AST.Functions
+                .SelectMany(v => v.Parameters.Parameters.Select(v => v.Type).Append(v.Type))
+
+            // Operators
+            .Append(
+                AST.Operators
+                .SelectMany(v => v.Parameters.Parameters.Select(v => v.Type).Append(v.Type))
+            )
+
+            // Fields
+            .Append(
+                AST.Structs.SelectMany(v => v.Fields).Select(v => v.Type)
+            )
+
+            // Methods
+            .Append(
+                AST.Structs.SelectMany(v => v.Functions.Append(v.Operators))
+                .SelectMany(v => v.Parameters.Parameters.Select(v => v.Type).Append(v.Type))
+            )
+
+            // Constructors
+            .Append(
+                AST.Structs.SelectMany(v => v.Constructors)
+                .SelectMany(v => v.Parameters.Parameters.Select(v => v.Type).Append(v.Type))
+            )
+
+            // General functions
+            .Append(
+                AST.Structs.SelectMany(v => v.GeneralFunctions)
+                .SelectMany(v => v.Parameters.Parameters.Select(v => v.Type))
+            )
+
+            // Aliases
+            .Append(AST.AliasDefinitions.Select(v => v.Value)))
+        {
+            if (!type.Position.Range.Contains(position)) continue;
+            result = GetDeepestTypeInstance(type, position);
+            return true;
+        }
+
+        if (includeStatements)
+        {
+            if (AST.GetStatementAt(position, out Statement? statement))
+            {
+                foreach (Statement item in StatementWalker.Visit(statement))
+                {
+                    if (!item.Position.Range.Contains(position)) continue;
+                    if (item is not IHaveType haveType) break;
+
+                    result = GetDeepestTypeInstance(haveType.Type, position);
+                    if (!result.Position.Range.Contains(position)) break;
+
+                    return true;
+                }
+            }
+        }
+
+        result = null;
+        return false;
     }
 }

@@ -254,8 +254,9 @@ static class Utils
         UnaryOperatorCallExpression v => v.Operator.Position,
         VariableDefinition v => v.Identifier.Position,
         FieldExpression v => v.Identifier.Position,
-        ConstructorCallExpression v => new Position([v.Keyword, v.Type]),
-        ManagedTypeCastExpression v => new Position([v.Type, v.Brackets]),
+        ConstructorCallExpression v => v.Type.Position,
+        NewInstanceExpression v => v.Type.Position,
+        ManagedTypeCastExpression v => v.Type.Position,
         _ => statement.Position,
     };
 }

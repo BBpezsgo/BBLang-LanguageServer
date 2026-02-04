@@ -81,19 +81,26 @@ sealed partial class DocumentBBLang
         return builder.ToString();
     }
 
-    static string GetTypeHover(GeneralType type) => type switch
+    static string? GetTypeHover(TypeInstance type)
     {
-        StructType structType => $"{DeclarationKeywords.Struct} {structType.Struct.Identifier.Content}",
-        GenericType genericType => $"(generic) {genericType.Identifier}",
-        AliasType aliasType => $"{DeclarationKeywords.Alias} {aliasType.Identifier} {aliasType.Value}",
-        _ => type.ToString()
-    };
+        if (type is not TypeInstanceSimple typeInstanceSimple) return null;
 
-    static void HandleTypeHovering(Statement statement, ref string? typeHover)
-    {
-        if (statement is Expression statementWithValue &&
-            statementWithValue.CompiledType is not null)
-        { typeHover = GetTypeHover(statementWithValue.CompiledType); }
+        if (typeInstanceSimple.Reference is CompiledStruct @struct)
+        {
+            return $"{DeclarationKeywords.Struct} {@struct.Identifier.Content}";
+        }
+
+        if (typeInstanceSimple.Reference is CompiledAlias alias)
+        {
+            return $"{DeclarationKeywords.Alias} {alias.Identifier.Content}";
+        }
+
+        if (typeInstanceSimple.Reference is Token generic)
+        {
+            return $"(generic) {generic.Content}";
+        }
+
+        return null;
     }
 
     bool HandleDefinitionHover<TFunction>(StatementCompiler.FunctionQueryResult<TFunction> function, ref string? definitionHover, ref string? docsHover)
@@ -429,7 +436,6 @@ sealed partial class DocumentBBLang
         }
         else if (AST.GetStatementAt(position, out Statement? statement))
         {
-            Logger.Debug(statement);
             foreach (Statement item in StatementWalker.Visit(statement))
             {
                 if (!item.Position.Range.Contains(e.Position.ToCool())) continue;
@@ -440,8 +446,94 @@ sealed partial class DocumentBBLang
 
                 range = checkPosition.Range;
 
+                if (item is IntLiteralExpression intLiteralExpression)
+                {
+                    StringBuilder numbers = new();
+                    string base2 = Convert.ToString(intLiteralExpression.Value, 2);
+                    string base10 = Convert.ToString(intLiteralExpression.Value, 10);
+                    string base16 = Convert.ToString(intLiteralExpression.Value, 16);
+                    string? _char = intLiteralExpression.Value is >= char.MinValue and <= char.MaxValue ? ((char)intLiteralExpression.Value).Escape() : null;
+
+                    if (base2.Length > 4)
+                    {
+                        if (base2.Length % 8 > 0)
+                        {
+                            base2 = new string('0', 8 - (base2.Length % 8)) + base2;
+                        }
+
+                        base2 = "_" + string.Join('_', base2.Chunk(8));
+                    }
+
+                    string? type =
+                        intLiteralExpression.CompiledType is not null
+                        ? $"({intLiteralExpression.CompiledType})"
+                        : null;
+
+                    numbers.Append($"{type}0b{base2}\n");
+                    numbers.Append($"{type}{base10}\n");
+                    numbers.Append($"{type}0x{base16}");
+                    if (_char is not null) numbers.Append($"{type}'{_char}'");
+                    definitionHover = numbers.ToString();
+                }
+                else if (item is FloatLiteralExpression floatLiteralExpression)
+                {
+                    string? type =
+                        floatLiteralExpression.CompiledType is not null
+                        ? $"({floatLiteralExpression.CompiledType})"
+                        : null;
+
+                    definitionHover = $"{type}{Convert.ToString(floatLiteralExpression.Value)}";
+                }
+                else if (item is CharLiteralExpression charLiteralExpression)
+                {
+                    StringBuilder numbers = new();
+                    string base2 = Convert.ToString(charLiteralExpression.Value, 2);
+                    string base10 = Convert.ToString(charLiteralExpression.Value, 10);
+                    string base16 = Convert.ToString(charLiteralExpression.Value, 16);
+                    string _char = charLiteralExpression.Value.Escape();
+
+                    if (base2.Length > 4)
+                    {
+                        if (base2.Length % 8 > 0)
+                        {
+                            base2 = new string('0', 8 - (base2.Length % 8)) + base2;
+                        }
+
+                        base2 = "_" + string.Join('_', base2.Chunk(8));
+                    }
+
+                    string? type =
+                        charLiteralExpression.CompiledType is not null
+                        ? $"({charLiteralExpression.CompiledType})"
+                        : null;
+
+                    numbers.Append($"{type}0b{base2}\n");
+                    numbers.Append($"{type}{base10}\n");
+                    numbers.Append($"{type}0x{base16}");
+                    numbers.Append($"{type}'{_char}'\n");
+                    definitionHover = numbers.ToString();
+                }
+                else if (item is BinaryOperatorCallExpression binaryOperatorCallExpression
+                    && binaryOperatorCallExpression.Reference is null
+                    && binaryOperatorCallExpression.CompiledType is not null
+                    && binaryOperatorCallExpression.Left.CompiledType is not null
+                    && binaryOperatorCallExpression.Right.CompiledType is not null)
+                {
+                    definitionHover = $"{binaryOperatorCallExpression.CompiledType} {binaryOperatorCallExpression.Operator}({binaryOperatorCallExpression.Left.CompiledType} left, {binaryOperatorCallExpression.Right.CompiledType} right)";
+                }
+                else if (item is UnaryOperatorCallExpression unaryOperatorCallExpression
+                    && unaryOperatorCallExpression.Reference is null
+                    && unaryOperatorCallExpression.CompiledType is not null
+                    && unaryOperatorCallExpression.Expression.CompiledType is not null)
+                {
+                    definitionHover = $"{unaryOperatorCallExpression.CompiledType} {unaryOperatorCallExpression.Operator}({unaryOperatorCallExpression.Expression.CompiledType} value)";
+                }
+                else if (item is Expression statementWithValue && statementWithValue.CompiledType is not null)
+                {
+                    typeHover = statementWithValue.CompiledType.ToString();
+                }
+
                 HandleDefinitionHover(item, ref definitionHover, ref docsHover);
-                HandleTypeHovering(item, ref typeHover);
                 HandleReferenceHovering(item, ref definitionHover, ref docsHover);
             }
         }
@@ -458,13 +550,11 @@ sealed partial class DocumentBBLang
             }
         }
 
-        if (typeHover is null &&
-            (AST, CompilerResult).GetTypeInstanceAt(Uri, e.Position.ToCool(), out TypeInstance? typeInstance, out GeneralType? generalType))
+        if (typeHover is null
+            && GetTypeInstanceAt(e.Position.ToCool(), true, out TypeInstance? typeInstance))
         {
-            GetDeepestTypeInstance(ref typeInstance, ref generalType, e.Position.ToCool());
-
             range = typeInstance.Position.Range;
-            typeHover = GetTypeHover(generalType);
+            typeHover = GetTypeHover(typeInstance);
         }
 
         StringBuilder contents = new();

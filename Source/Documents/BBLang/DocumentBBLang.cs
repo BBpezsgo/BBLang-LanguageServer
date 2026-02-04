@@ -35,6 +35,8 @@ sealed partial class DocumentBBLang : DocumentBase
         if (CompiledVersion == version) return;
         if (DesiredCompiledVersion == version) return;
 
+        Logger.Debug($"Requesting compilation for {version}");
+
         DesiredCompiledVersion = version;
 
         CompilationTask = Task.Run(async () =>
@@ -44,7 +46,6 @@ sealed partial class DocumentBBLang : DocumentBase
             if (CompiledVersion == DesiredCompiledVersion) return;
 
             await CompileAsync().ConfigureAwait(false);
-            CompilationTask = null;
 
             if (DesiredCompiledVersion != CompiledVersion)
             {
@@ -65,7 +66,7 @@ sealed partial class DocumentBBLang : DocumentBase
     {
         CurrentlyCompilingVersion = Version ?? 0;
 
-        Logger.Debug($"Validate");
+        Logger.Debug($"Validating {CurrentlyCompilingVersion} ...");
 
 #pragma warning disable CA1031 // Do not catch general exception types
         try
@@ -118,7 +119,7 @@ sealed partial class DocumentBBLang : DocumentBase
                 CompilerResult = compilerResult;
 
                 compiledFiles = new(compilerResult.RawTokens.Select(v => v.File));
-                Logger.Info($"Validated ({(diagnostics.HasErrors ? "failed" : "ok")})");
+                Logger.Info($"Validated {CurrentlyCompilingVersion} ({(diagnostics.HasErrors ? "failed" : "ok")})");
             }
             else if (Content is not null)
             {
@@ -127,7 +128,7 @@ sealed partial class DocumentBBLang : DocumentBase
                 Tokens = !ast.Tokens.IsDefault ? ast.Tokens : !tokens.Tokens.IsDefault ? tokens.Tokens : ImmutableArray<Token>.Empty;
                 AST = ast.IsNotEmpty ? ast : AST;
                 compiledFiles = new() { Uri };
-                Logger.Info($"Validated (fallback)");
+                Logger.Info($"Validated {CurrentlyCompilingVersion} (fallback)");
             }
             else
             {
