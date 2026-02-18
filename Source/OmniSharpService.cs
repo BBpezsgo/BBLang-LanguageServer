@@ -70,6 +70,7 @@ sealed class OmniSharpService
            .WithHandler<SemanticTokensHandler>()
            .WithHandler<SignatureHelpHandler>()
            .WithHandler<TextDocumentSyncHandler>()
+           .WithHandler<NotebookDocumentSyncHandler>()
            .WithHandler<TypeDefinitionHandler>()
         ;
 

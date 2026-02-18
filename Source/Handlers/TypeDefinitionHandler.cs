@@ -7,7 +7,7 @@ sealed class TypeDefinitionHandler : ITypeDefinitionHandler
         Logger.Debug($"[Handler] TypeDefinition ({request.TextDocument}:{request.Position.ToStringMin()})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
-        if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument, out DocumentBase? document)) return null;
+        if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument.Uri, out DocumentBase? document)) return null;
 
         try
         {

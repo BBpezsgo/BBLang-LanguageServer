@@ -7,7 +7,7 @@ sealed class DocumentSymbolHandler : IDocumentSymbolHandler
         Logger.Debug($"[Handler] DocumentSymbol ({request.TextDocument})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
-        if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument, out DocumentBase? document)) return null;
+        if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument.Uri, out DocumentBase? document)) return null;
 
         try
         {

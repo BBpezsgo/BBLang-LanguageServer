@@ -74,7 +74,7 @@ sealed partial class DocumentBBLang : DocumentBase
             DiagnosticsCollection diagnostics = new();
 
             Configuration config = Configuration.Parse([
-                ..Documents.SelectMany(v => ConfigurationManager.Search(v.Uri, Documents)).DistinctBy(v => v.Uri)
+                ..Documents.OpenedDocuments.SelectMany(v => ConfigurationManager.Search(v.Uri, Documents)).DistinctBy(v => v.Uri)
             ], diagnostics);
 
             diagnostics.Clear();
@@ -106,7 +106,7 @@ sealed partial class DocumentBBLang : DocumentBase
                 CompilerResult compilerResult = CompilerResult.MakeEmpty(Uri);
                 try
                 {
-                    compilerResult = StatementCompiler.CompileFiles(Documents.Select(v => v.Uri.ToString()).ToArray(), compilerSettings, diagnostics);
+                    compilerResult = StatementCompiler.CompileFiles(Documents.OpenedDocuments.Select(v => v.Uri.ToString()).ToArray(), compilerSettings, diagnostics);
                 }
                 catch (LanguageExceptionAt languageException)
                 {

@@ -7,7 +7,7 @@ sealed class ReferencesHandler : IReferencesHandler
         Logger.Debug($"[Handler] References ({request.TextDocument}:{request.Position.ToStringMin()}) ({request.Context})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
-        if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument, out DocumentBase? document)) return null;
+        if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument.Uri, out DocumentBase? document)) return null;
 
         try
         {

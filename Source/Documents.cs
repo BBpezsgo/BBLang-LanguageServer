@@ -4,13 +4,18 @@ using LanguageServer.DocumentManagers;
 
 namespace LanguageServer;
 
-sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProvider, IEnumerable<DocumentBase>
+sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProvider
 {
     readonly List<DocumentBase> _documents;
+    readonly List<NotebookBase> _notebooks;
+
+    public IReadOnlyCollection<DocumentBase> OpenedDocuments => _documents;
+    public IReadOnlyCollection<NotebookBase> OpenedNotebooks => _notebooks;
 
     public Documents()
     {
         _documents = new List<DocumentBase>();
+        _notebooks = new List<NotebookBase>();
     }
 
     public static DocumentBase GenerateDocument(DocumentUri uri, string? content, string languageId, Documents documentInterface) => languageId switch
@@ -19,7 +24,11 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
         _ => throw new ServiceException($"Unknown language \"{languageId}\"")
     };
 
-    public bool TryGet(TextDocumentIdentifier identifier, [NotNullWhen(true)] out DocumentBase? document) => TryGet(identifier.Uri, out document);
+    public static NotebookBase GenerateNotebook(DocumentUri uri, string languageId, Documents documentInterface) => languageId switch
+    {
+        LanguageConstants.LanguageId => new NotebookBBLang(uri, languageId, documentInterface),
+        _ => throw new ServiceException($"Unknown language \"{languageId}\"")
+    };
 
     public bool TryGet(DocumentUri uri, [NotNullWhen(true)] out DocumentBase? document)
     {
@@ -35,14 +44,37 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
         return false;
     }
 
-    public void Remove(TextDocumentIdentifier documentId)
+    public bool TryGetNotebook(DocumentUri uri, [NotNullWhen(true)] out NotebookBase? notebook)
+    {
+        for (int i = 0; i < _notebooks.Count; i++)
+        {
+            if (_notebooks[i].Uri == uri)
+            {
+                notebook = _notebooks[i];
+                return true;
+            }
+        }
+        notebook = null;
+        return false;
+    }
+
+    public void Remove(DocumentUri documentId)
     {
         Logger.Debug($"[Docs] Unregister ({documentId})");
+
         for (int i = _documents.Count - 1; i >= 0; i--)
         {
-            if (_documents[i].Uri == documentId.Uri)
+            if (_documents[i].Uri == documentId)
             {
                 _documents.RemoveAt(i);
+            }
+        }
+
+        for (int i = _notebooks.Count - 1; i >= 0; i--)
+        {
+            if (_notebooks[i].Uri == documentId)
+            {
+                _notebooks.RemoveAt(i);
             }
         }
     }
@@ -61,31 +93,43 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
         }
     }
 
-    public DocumentBase? Get(TextDocumentIdentifier documentId)
-        => TryGet(documentId.Uri, out DocumentBase? document) ? document : null;
-
-    public DocumentBase GetOrCreate(TextDocumentIdentifier documentId, string? content = null)
+    public DocumentBase GetOrCreate(DocumentUri documentId, string? content = null)
     {
         RemoveDuplicates();
 
-        if (TryGet(documentId.Uri, out DocumentBase? document))
+        if (TryGet(documentId, out DocumentBase? document))
         { return document; }
 
         Logger.Debug($"[Docs] Register ({documentId})");
 
-        if (documentId.Uri.Scheme == "file")
+        if (documentId.Scheme == "file")
         {
             if (content is null)
             {
-                string path = System.Net.WebUtility.UrlDecode(documentId.Uri.ToUri().AbsolutePath);
+                string path = System.Net.WebUtility.UrlDecode(documentId.ToUri().AbsolutePath);
                 if (!System.IO.File.Exists(path))
                 { throw new ServiceException($"File not found: \"{path}\""); }
                 content = System.IO.File.ReadAllText(path);
             }
         }
 
-        document = GenerateDocument(documentId.Uri, content, documentId.GetExtension(), this);
+        document = GenerateDocument(documentId, content, documentId.GetExtension(), this);
         _documents.Add(document);
+
+        return document;
+    }
+
+    public NotebookBase GetOrCreateNotebook(DocumentUri documentId)
+    {
+        RemoveDuplicates();
+
+        if (TryGetNotebook(documentId, out var document))
+        { return document; }
+
+        Logger.Debug($"[Docs] Register ({documentId})");
+
+        document = GenerateNotebook(documentId, documentId.GetExtension(), this);
+        _notebooks.Add(document);
 
         return document;
     }
@@ -150,7 +194,4 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
 
         return false;
     }
-
-    public IEnumerator<DocumentBase> GetEnumerator() => _documents.GetEnumerator();
-    IEnumerator IEnumerable.GetEnumerator() => _documents.GetEnumerator();
 }

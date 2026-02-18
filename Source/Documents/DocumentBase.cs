@@ -33,7 +33,7 @@ abstract class DocumentBase
         Content = e.TextDocument.Text;
 
         DocumentUri = e.TextDocument.Uri;
-        LanguageId = e.TextDocument.GetExtension();
+        LanguageId = e.TextDocument.Uri.GetExtension();
         Version = e.TextDocument.Version;
     }
 
@@ -61,7 +61,7 @@ abstract class DocumentBase
         }
 
         DocumentUri = e.TextDocument.Uri;
-        LanguageId = e.TextDocument.GetExtension();
+        LanguageId = e.TextDocument.Uri.GetExtension();
         Version = e.TextDocument.Version;
     }
 
@@ -74,7 +74,7 @@ abstract class DocumentBase
         }
 
         DocumentUri = e.TextDocument.Uri;
-        LanguageId = e.TextDocument.GetExtension();
+        LanguageId = e.TextDocument.Uri.GetExtension();
     }
 
     public virtual Task<Hover?> Hover(HoverParams request, CancellationToken cancellationToken) => Task.FromResult<Hover?>(null);

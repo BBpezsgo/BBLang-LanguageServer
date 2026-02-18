@@ -24,8 +24,6 @@ static class Extensions
     public static string GetExtension(this DocumentUri uri)
         => Path.GetExtension(uri.ToUri().AbsolutePath).TrimStart('.').ToLowerInvariant();
 
-    public static string GetExtension(this TextDocumentIdentifier uri) => uri.Uri.GetExtension();
-
     public static OmniSharpRange ToOmniSharp(this Range<SinglePosition> self) => new()
     {
         Start = self.Start.ToOmniSharp(),

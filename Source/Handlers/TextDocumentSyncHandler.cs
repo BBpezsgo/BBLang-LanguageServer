@@ -4,15 +4,7 @@ namespace LanguageServer.Handlers;
 
 sealed class TextDocumentSyncHandler : TextDocumentSyncHandlerBase
 {
-    [SuppressMessage("CodeQuality", "IDE0052")]
-    readonly ILanguageServerFacade Router;
-
     static readonly TextDocumentSelector DocumentSelector = new(new TextDocumentFilter() { Pattern = $"**/*.{LanguageCore.LanguageConstants.LanguageExtension}" });
-
-    public TextDocumentSyncHandler(ILanguageServerFacade router)
-    {
-        Router = router;
-    }
 
     public static TextDocumentChangeRegistrationOptions GetRegistrationOptions() => new()
     {
@@ -20,14 +12,13 @@ sealed class TextDocumentSyncHandler : TextDocumentSyncHandlerBase
         SyncKind = TextDocumentSyncKind.Full,
     };
 
-    public override TextDocumentAttributes GetTextDocumentAttributes(DocumentUri uri)
-        => new(uri, uri.GetExtension());
+    public override TextDocumentAttributes GetTextDocumentAttributes(DocumentUri uri) => new(uri, uri.GetExtension());
 
     public override Task<Unit> Handle(DidOpenTextDocumentParams request, CancellationToken cancellationToken)
     {
         Logger.Debug($"[DocSync] Opened ({request.TextDocument})");
 
-        OmniSharpService.Instance?.Documents.GetOrCreate(request.TextDocument).OnOpened(request);
+        OmniSharpService.Instance?.Documents.GetOrCreate(request.TextDocument.Uri).OnOpened(request);
 
         return Unit.Task;
     }
@@ -36,7 +27,7 @@ sealed class TextDocumentSyncHandler : TextDocumentSyncHandlerBase
     {
         Logger.Debug($"[DocSync] Changed ({request.TextDocument})");
 
-        OmniSharpService.Instance?.Documents.GetOrCreate(request.TextDocument).OnChanged(request);
+        OmniSharpService.Instance?.Documents.GetOrCreate(request.TextDocument.Uri).OnChanged(request);
 
         return Unit.Task;
     }
@@ -45,7 +36,7 @@ sealed class TextDocumentSyncHandler : TextDocumentSyncHandlerBase
     {
         Logger.Debug($"[DocSync] Saved ({request.TextDocument})");
 
-        OmniSharpService.Instance?.Documents.GetOrCreate(request.TextDocument).OnSaved(request);
+        OmniSharpService.Instance?.Documents.GetOrCreate(request.TextDocument.Uri).OnSaved(request);
 
         return Unit.Task;
     }
@@ -54,7 +45,7 @@ sealed class TextDocumentSyncHandler : TextDocumentSyncHandlerBase
     {
         Logger.Debug($"[DocSync] Closed ({request.TextDocument})");
 
-        OmniSharpService.Instance?.Documents.Remove(request.TextDocument);
+        OmniSharpService.Instance?.Documents.Remove(request.TextDocument.Uri);
 
         return Unit.Task;
     }
