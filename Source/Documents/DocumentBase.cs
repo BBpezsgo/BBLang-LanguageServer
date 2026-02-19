@@ -89,6 +89,8 @@ abstract class DocumentBase
     public virtual Task<LocationOrLocationLinks?> GotoTypeDefinition(TypeDefinitionParams request, CancellationToken cancellationToken) => Task.FromResult<LocationOrLocationLinks?>(null);
     public virtual Task<LocationOrLocationLinks?> GotoImplementation(ImplementationParams request, CancellationToken cancellationToken) => Task.FromResult<LocationOrLocationLinks?>(null);
     public virtual Task<IEnumerable<SymbolInformationOrDocumentSymbol>?> Symbols(DocumentSymbolParams request, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<SymbolInformationOrDocumentSymbol>?>(null);
+    public virtual Task<IEnumerable<InlineValueBase>?> InlineValues(InlineValueParams request, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<InlineValueBase>?>(null);
+    public virtual Task<IEnumerable<InlayHint>?> InlayHints(InlayHintParams request, CancellationToken cancellationToken) => Task.FromResult<IEnumerable<InlayHint>?>(null);
 
     public override string ToString() => $"{Path}";
 }

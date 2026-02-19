@@ -70,8 +70,9 @@ sealed class OmniSharpService
            .WithHandler<SemanticTokensHandler>()
            .WithHandler<SignatureHelpHandler>()
            .WithHandler<TextDocumentSyncHandler>()
-           .WithHandler<NotebookDocumentSyncHandler>()
+           //.WithHandler<NotebookDocumentSyncHandler>()
            .WithHandler<TypeDefinitionHandler>()
+           .WithHandler<InlayHintsHandler>()
         ;
 
         options.OnInitialize((server, request, cancellationToken) =>

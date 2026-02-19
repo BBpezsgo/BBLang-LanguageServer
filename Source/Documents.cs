@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using LanguageCore;
+﻿using LanguageCore;
 using LanguageServer.DocumentManagers;
 
 namespace LanguageServer;
@@ -126,7 +125,7 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
         if (TryGetNotebook(documentId, out var document))
         { return document; }
 
-        Logger.Debug($"[Docs] Register ({documentId})");
+        Logger.Debug($"[Docs] Register notebook ({documentId})");
 
         document = GenerateNotebook(documentId, documentId.GetExtension(), this);
         _notebooks.Add(document);

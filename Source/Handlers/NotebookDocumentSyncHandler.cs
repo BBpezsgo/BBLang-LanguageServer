@@ -8,7 +8,7 @@ sealed class NotebookDocumentSyncHandler : NotebookDocumentSyncHandlerBase
 
     public override Task<Unit> Handle(DidOpenNotebookDocumentParams request, CancellationToken cancellationToken)
     {
-        Logger.Debug($"[DocSync] Opened ({request.NotebookDocument.Uri})");
+        Logger.Debug($"[NotebookSync] Opened ({request.NotebookDocument.Uri})");
 
         OmniSharpService.Instance?.Documents.GetOrCreateNotebook(request.NotebookDocument.Uri).OnOpened(request);
 
@@ -17,7 +17,7 @@ sealed class NotebookDocumentSyncHandler : NotebookDocumentSyncHandlerBase
 
     public override Task<Unit> Handle(DidChangeNotebookDocumentParams request, CancellationToken cancellationToken)
     {
-        Logger.Debug($"[DocSync] Changed ({request.NotebookDocument.Uri})");
+        Logger.Debug($"[NotebookSync] Changed ({request.NotebookDocument.Uri})");
 
         OmniSharpService.Instance?.Documents.GetOrCreateNotebook(request.NotebookDocument.Uri).OnChanged(request);
 
@@ -26,7 +26,7 @@ sealed class NotebookDocumentSyncHandler : NotebookDocumentSyncHandlerBase
 
     public override Task<Unit> Handle(DidSaveNotebookDocumentParams request, CancellationToken cancellationToken)
     {
-        Logger.Debug($"[DocSync] Saved ({request.NotebookDocument.Uri})");
+        Logger.Debug($"[NotebookSync] Saved ({request.NotebookDocument.Uri})");
 
         OmniSharpService.Instance?.Documents.GetOrCreateNotebook(request.NotebookDocument.Uri).OnSaved(request);
 
@@ -35,7 +35,7 @@ sealed class NotebookDocumentSyncHandler : NotebookDocumentSyncHandlerBase
 
     public override Task<Unit> Handle(DidCloseNotebookDocumentParams request, CancellationToken cancellationToken)
     {
-        Logger.Debug($"[DocSync] Closed ({request.NotebookDocument.Uri})");
+        Logger.Debug($"[NotebookSync] Closed ({request.NotebookDocument.Uri})");
 
         OmniSharpService.Instance?.Documents.Remove(request.NotebookDocument.Uri);
 
