@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.IO;
 using LanguageCore;
 using LanguageCore.Compiler;
 using LanguageCore.Parser;
@@ -170,6 +171,54 @@ sealed partial class DocumentBBLang
             {
                 return result;
             }
+        }
+
+        foreach (UsingDefinition @using in AST.Usings)
+        {
+            if (!@using.Position.Range.Contains(p)) continue;
+            if (p <= @using.Keyword.Position.Range.End) continue;
+
+            HashSet<Uri> uris = new();
+            foreach (ISourceProvider sourceProvider in CompilerSettings.SourceProviders)
+            {
+                if (sourceProvider is not ISourceQueryProvider queryProvider) continue;
+                foreach (Uri query in queryProvider.GetQuery(@using.PathString, Uri))
+                {
+                    uris.Add(query);
+                }
+            }
+
+            foreach (Uri uri in uris)
+            {
+                if (uri.IsFile)
+                {
+                    string? dir = System.IO.Path.GetDirectoryName(uri.LocalPath);
+                    if (dir is null) continue;
+                    if (!Directory.Exists(dir)) continue;
+
+                    foreach (string directory in Directory.GetDirectories(dir))
+                    {
+                        result.Add(new CompletionItem()
+                        {
+                            Kind = CompletionItemKind.Folder,
+                            Label = System.IO.Path.GetFileNameWithoutExtension(directory),
+                        });
+                    }
+
+                    foreach (string file in Directory.GetFiles(dir))
+                    {
+                        if (!file.EndsWith($".{LanguageConstants.LanguageExtension}")) continue;
+
+                        result.Add(new CompletionItem()
+                        {
+                            Kind = CompletionItemKind.File,
+                            Label = System.IO.Path.GetFileNameWithoutExtension(file),
+                        });
+                    }
+                }
+            }
+
+            return result;
         }
 
         foreach (Statement statement in AST.EnumerateStatements().Where(v => v.Position.Range.Contains(p)))
