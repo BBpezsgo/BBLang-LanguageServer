@@ -60,26 +60,26 @@ sealed partial class DocumentBBLang
     {
         await AwaitForCompilation(Version ?? 0, cancellationToken).ConfigureAwait(false);
 
-        List<LocationOrLocationLink> links = new();
-
         SinglePosition p = e.Position.ToCool();
 
         foreach (UsingDefinition @using in AST.Usings.IsDefault ? ImmutableArray<UsingDefinition>.Empty : AST.Usings)
         {
-            if (!@using.Position.Range.Contains(p))
-            { continue; }
-            if (@using.CompiledUri is null)
-            { break; }
+            if (@using.Path.IsEmpty) continue;
+            var pathPos = new Position(@using.Path);
 
-            links.Add(new LocationOrLocationLink(new LocationLink()
+            if (!pathPos.Range.Contains(p)) continue;
+            if (@using.CompiledUri is null) break;
+
+            return new LocationOrLocationLinks(new LocationLink()
             {
                 TargetUri = DocumentUri.From(@using.CompiledUri),
-                OriginSelectionRange = new Position(@using.Path.DefaultIfEmpty(@using.Keyword)).ToOmniSharp(),
+                OriginSelectionRange = pathPos.ToOmniSharp(),
                 TargetRange = Position.Zero.ToOmniSharp(),
                 TargetSelectionRange = Position.Zero.ToOmniSharp(),
-            }));
-            break;
+            });
         }
+
+        List<LocationOrLocationLink> links = new();
 
         Range<SinglePosition> range = default;
         object? reference = null;

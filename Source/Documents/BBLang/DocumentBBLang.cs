@@ -17,6 +17,8 @@ sealed partial class DocumentBBLang : DocumentBase
     public ParserResult AST;
     public CompilerResult CompilerResult;
 
+    public CompilerSettings CompilerSettings;
+
     Task? CompilationTask;
     int CompiledVersion;
     int CurrentlyCompilingVersion;
@@ -79,7 +81,7 @@ sealed partial class DocumentBBLang : DocumentBase
 
             diagnostics.Clear();
 
-            CompilerSettings compilerSettings = new(CodeGeneratorForMain.DefaultCompilerSettings)
+            CompilerSettings compilerSettings = CompilerSettings = new(CodeGeneratorForMain.DefaultCompilerSettings)
             {
                 Optimizations = OptimizationSettings.None,
                 CompileEverything = true,
@@ -208,6 +210,7 @@ sealed partial class DocumentBBLang : DocumentBase
         }
         catch (Exception ex)
         {
+            Logger.Error(ex);
             OmniSharpService.Instance?.Server?.Window?.ShowError($"BBLang {ex.GetType().Name}: {ex.Message}");
         }
         finally
