@@ -169,6 +169,54 @@ sealed partial class DocumentBBLang
 
             if (attribute.Brackets.Position.Range.Contains(p))
             {
+                switch (attribute.Identifier.Content)
+                {
+                    case AttributeConstants.BuiltinIdentifier:
+                        if (attribute.Parameters.Length >= 1
+                            && attribute.Parameters[0].Position.Range.Contains(p)
+                            && attribute.Parameters[0] is StringLiteralExpression)
+                        {
+                            result.AddRange(BuiltinFunctions.Prototypes.Keys.Select(v => new CompletionItem()
+                            {
+                                Label = v,
+                                Kind = CompletionItemKind.Constant,
+                            }));
+                        }
+                        break;
+                    case AttributeConstants.ExternalIdentifier:
+                        if (attribute.Parameters.Length >= 1
+                            && attribute.Parameters[0].Position.Range.Contains(p)
+                            && attribute.Parameters[0] is StringLiteralExpression)
+                        {
+                            result.AddRange(CompilerSettings.ExternalFunctions.Select(v => v.Name is null ? null : new CompletionItem()
+                            {
+                                Label = v.Name,
+                                Kind = CompletionItemKind.Constant,
+                            }).Where(v => v is not null)!);
+                            result.AddRange(CompilerSettings.ExternalConstants.Select(v => new CompletionItem()
+                            {
+                                Label = v.Name,
+                                Kind = CompletionItemKind.Constant,
+                            }));
+                        }
+                        break;
+                    case AttributeConstants.InternalIdentifier:
+                        break;
+                    case AttributeConstants.InternalType:
+                        if (attribute.Parameters.Length >= 1
+                            && attribute.Parameters[0].Position.Range.Contains(p)
+                            && attribute.Parameters[0] is StringLiteralExpression)
+                        {
+                            result.AddRange(InternalTypes.List.Select(v => new CompletionItem()
+                            {
+                                Label = v,
+                                Kind = CompletionItemKind.Constant,
+                            }));
+                        }
+                        break;
+                    default:
+                        break;
+                }
                 return result;
             }
         }
