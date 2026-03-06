@@ -81,123 +81,84 @@ sealed partial class DocumentBBLang
         return builder.ToString();
     }
 
-    static string? GetTypeHover(TypeInstance type)
+    static string GetAliasHover(CompiledAlias alias)
     {
-        if (type is not TypeInstanceSimple typeInstanceSimple) return null;
-
-        if (typeInstanceSimple.Reference is CompiledStruct @struct)
-        {
-            return $"{DeclarationKeywords.Struct} {@struct.Identifier.Content}";
-        }
-
-        if (typeInstanceSimple.Reference is CompiledAlias alias)
-        {
-            return $"{DeclarationKeywords.Alias} {alias.Identifier.Content}";
-        }
-
-        if (typeInstanceSimple.Reference is Token generic)
-        {
-            return $"(generic) {generic.Content}";
-        }
-
-        return null;
-    }
-
-    bool HandleDefinitionHover<TFunction>(StatementCompiler.FunctionQueryResult<TFunction> function, ref string? definitionHover, ref string? docsHover)
-        where TFunction : FunctionThingDefinition, ICompiledFunctionDefinition
-    {
-        if (function.OriginalFunction.File is null)
-        { return false; }
-
-        definitionHover = GetFunctionHover(function.Function, function.TypeArguments);
-        GetCommentDocumentation(function.OriginalFunction, out docsHover);
-        return true;
-    }
-
-    bool HandleDefinitionHover(object? definition, ref string? definitionHover, ref string? docsHover) => definition switch
-    {
-        CompiledOperatorDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-        CompiledFunctionDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-        CompiledGeneralFunctionDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-        CompiledVariableConstant v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-        VariableDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-        CompiledVariableDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-        CompiledParameter v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-        ParameterDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-        CompiledField v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-        FieldDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-        CompiledStruct v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-        StatementCompiler.FunctionQueryResult<CompiledFunctionDefinition> v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-
-        StructDefinition v => HandleDefinitionHover(v, ref definitionHover, ref docsHover),
-
-        _ => false,
-    };
-
-    bool HandleDefinitionHover<TFunction>(TFunction function, ref string? definitionHover, ref string? docsHover)
-        where TFunction : FunctionThingDefinition, ICompiledFunctionDefinition
-    {
-        if (function.File is null)
-        { return false; }
-
-        definitionHover = GetFunctionHover(function, null);
-        GetCommentDocumentation(function, out docsHover);
-        return true;
-    }
-
-    bool HandleDefinitionHover(CompiledStruct @struct, ref string? definitionHover, ref string? docsHover)
-    {
-        if (@struct.File is null)
-        { return false; }
-
-        definitionHover = GetStructHover(@struct);
-        GetCommentDocumentation(@struct, out docsHover);
-        return true;
-    }
-
-    bool HandleDefinitionHover(StructDefinition @struct, ref string? definitionHover, ref string? docsHover)
-    {
-        if (@struct.File is null)
-        { return false; }
-
-        definitionHover = GetStructHover(@struct);
-        GetCommentDocumentation(@struct, out docsHover);
-        return true;
-    }
-
-    /*
-    bool HandleDefinitionHover(CompiledVariable variable, ref string? definitionHover, ref string? docsHover)
-    {
-        if (variable.File is null)
-        { return false; }
-
         StringBuilder builder = new();
-
-        if (variable.Modifiers.Contains(ModifierKeywords.Const))
-        { builder.Append("(constant) "); }
-        else
-        { builder.Append("(variable) "); }
-
-        if (variable.Modifiers.Length > 0)
+        IEnumerable<Token> modifiers = Utils.GetVisibleModifiers(alias.Modifiers);
+        if (modifiers.Any())
         {
-            builder.AppendJoin(' ', variable.Modifiers);
+            builder.AppendJoin(' ', modifiers);
             builder.Append(' ');
         }
-        builder.Append(variable.Type);
+
+        builder.Append(DeclarationKeywords.Alias);
         builder.Append(' ');
-        builder.Append(variable.Identifier);
-        definitionHover = builder.ToString();
-
-        GetCommentDocumentation(variable, out docsHover);
-        return true;
+        builder.Append(alias.Identifier);
+        builder.Append(" = ");
+        builder.Append(alias.Value.ToString());
+        return builder.ToString();
     }
-    */
 
-    bool HandleDefinitionHover(VariableDefinition variable, ref string? definitionHover, ref string? docsHover)
+    static string GetAliasHover(AliasDefinition alias)
     {
-        if (variable.File is null)
-        { return false; }
+        StringBuilder builder = new();
+        IEnumerable<Token> modifiers = Utils.GetVisibleModifiers(alias.Modifiers);
+        if (modifiers.Any())
+        {
+            builder.AppendJoin(' ', modifiers);
+            builder.Append(' ');
+        }
 
+        builder.Append(DeclarationKeywords.Alias);
+        builder.Append(' ');
+        builder.Append(alias.Identifier);
+        builder.Append(" = ");
+        builder.Append(alias.Value.ToString());
+        return builder.ToString();
+    }
+
+    static string? GetTypeHover(GeneralType type) => type switch
+    {
+        AliasType v => GetAliasHover(v.Definition),
+        BuiltinType v => $"{v}",
+        GenericType v => $"(generic) {v.Identifier}",
+        StructType v => GetStructHover(v.Struct),
+        _ => type.ToString()
+    };
+
+    static string? GetTypeHover(TypeInstance v) => v switch
+    {
+        TypeInstanceFunction w => w.CompiledType is not null ? GetTypeHover(w.CompiledType) : null,
+        TypeInstancePointer w => w.CompiledType is not null ? GetTypeHover(w.CompiledType) : null,
+        TypeInstanceReference w => w.CompiledType is not null ? GetTypeHover(w.CompiledType) : null,
+        TypeInstanceSimple w => w.CompiledType is not null ? GetTypeHover(w.CompiledType) : null,
+        TypeInstanceStackArray w => w.CompiledType is not null ? GetTypeHover(w.CompiledType) : null,
+        _ => null,
+    };
+
+    static string? GetDefinitionHover(object? definition) => definition switch
+    {
+        CompiledOperatorDefinition v => GetFunctionHover(v, null),
+        CompiledFunctionDefinition v => GetFunctionHover(v, null),
+        CompiledGeneralFunctionDefinition v => GetFunctionHover(v, null),
+        CompiledVariableConstant v => GetVariableHover(v),
+        CompiledVariableDefinition v => GetVariableHover(v),
+        CompiledParameter v => GetParameterHover(v),
+        CompiledField v => GetFieldHover(v),
+        CompiledStruct v => GetStructHover(v),
+
+        StatementCompiler.FunctionQueryResult<CompiledFunctionDefinition> v => GetFunctionHover(v.Function, v.TypeArguments),
+
+        VariableDefinition v => GetVariableHover(v),
+        ParameterDefinition v => GetParameterHover(v),
+        FieldDefinition v => GetFieldHover(v),
+        StructDefinition v => GetStructHover(v),
+
+        _ => null,
+    };
+
+    static string GetVariableHover(VariableDefinition variable)
+    {
         StringBuilder builder = new();
 
         if (variable.Modifiers.Contains(ModifierKeywords.Const))
@@ -213,13 +174,11 @@ sealed partial class DocumentBBLang
         builder.Append(variable.CompiledType?.ToString() ?? variable.Type.ToString());
         builder.Append(' ');
         builder.Append(variable.Identifier);
-        definitionHover = builder.ToString();
 
-        GetCommentDocumentation(variable, out docsHover);
-        return true;
+        return builder.ToString();
     }
 
-    bool HandleDefinitionHover(CompiledVariableDefinition variable, ref string? definitionHover, ref string? docsHover)
+    static string GetVariableHover(CompiledVariableDefinition variable)
     {
         StringBuilder builder = new();
 
@@ -228,13 +187,11 @@ sealed partial class DocumentBBLang
         builder.Append(variable.Type.ToString());
         builder.Append(' ');
         builder.Append(variable.Identifier);
-        definitionHover = builder.ToString();
 
-        GetCommentDocumentation(variable, out docsHover);
-        return true;
+        return builder.ToString();
     }
 
-    bool HandleDefinitionHover(CompiledVariableConstant variable, ref string? definitionHover, ref string? docsHover)
+    static string GetVariableHover(CompiledVariableConstant variable)
     {
         StringBuilder builder = new();
 
@@ -247,13 +204,10 @@ sealed partial class DocumentBBLang
         builder.Append(" = ");
         builder.Append(variable.Value.ToStringValue());
 
-        definitionHover = builder.ToString();
-
-        GetCommentDocumentation(variable, out docsHover);
-        return true;
+        return builder.ToString();
     }
 
-    bool HandleDefinitionHover(CompiledParameter parameter, ref string? definitionHover, ref string? docsHover)
+    static string GetParameterHover(CompiledParameter parameter)
     {
         StringBuilder builder = new();
         builder.Append("(parameter) ");
@@ -265,13 +219,11 @@ sealed partial class DocumentBBLang
         builder.Append(parameter.Type);
         builder.Append(' ');
         builder.Append(parameter.Identifier);
-        definitionHover = builder.ToString();
 
-        GetCommentDocumentation(parameter, parameter.File, out docsHover);
-        return true;
+        return builder.ToString();
     }
 
-    bool HandleDefinitionHover(ParameterDefinition parameter, ref string? definitionHover, ref string? docsHover)
+    static string GetParameterHover(ParameterDefinition parameter)
     {
         StringBuilder builder = new();
         builder.Append("(parameter) ");
@@ -283,66 +235,18 @@ sealed partial class DocumentBBLang
         builder.Append(parameter.Type);
         builder.Append(' ');
         builder.Append(parameter.Identifier);
-        definitionHover = builder.ToString();
 
-        GetCommentDocumentation(parameter, parameter.File, out docsHover);
-        return true;
+        return builder.ToString();
     }
 
-    bool HandleDefinitionHover(CompiledField field, ref string? definitionHover, ref string? docsHover)
+    static string GetFieldHover(CompiledField field)
     {
-        if (field.Context is null)
-        { return false; }
-        if (field.Context.File is null)
-        { return false; }
-
-        definitionHover = $"(field) {field.Type} {field.Identifier}";
-        GetCommentDocumentation(field, field.Context.File, out docsHover);
-        return true;
+        return $"(field) {field.Type} {field.Identifier}";
     }
 
-    bool HandleDefinitionHover(FieldDefinition field, ref string? definitionHover, ref string? docsHover)
+    static string GetFieldHover(FieldDefinition field)
     {
-        if (field.Context is null)
-        { return false; }
-        if (field.Context.File is null)
-        { return false; }
-
-        definitionHover = $"(field) {field.Type} {field.Identifier}";
-        GetCommentDocumentation(field, field.Context.File, out docsHover);
-        return true;
-    }
-
-    bool HandleReferenceHovering(Statement statement, ref string? definitionHover, ref string? docsHover)
-    {
-        if (statement is IReferenceableTo _ref1 &&
-            HandleDefinitionHover(_ref1.Reference, ref definitionHover, ref docsHover))
-        { return true; }
-
-        if (statement is VariableDefinition variableDeclaration)
-        { return HandleDefinitionHover(variableDeclaration, ref definitionHover, ref docsHover); }
-
-        return false;
-    }
-
-    public bool GetFieldAt(Uri file, SinglePosition position, [NotNullWhen(true)] out FieldDefinition? result)
-    {
-        foreach (StructDefinition @struct in AST.Structs.IsDefault ? ImmutableArray<StructDefinition>.Empty : AST.Structs)
-        {
-            if (@struct.File != file) continue;
-
-            foreach (FieldDefinition field in @struct.Fields)
-            {
-                if (field.Identifier.Position.Range.Contains(position))
-                {
-                    result = field;
-                    return true;
-                }
-            }
-        }
-
-        result = null;
-        return false;
+        return $"(field) {field.Type} {field.Identifier}";
     }
 
     public override async Task<Hover?> Hover(HoverParams e, CancellationToken cancellationToken)
@@ -403,36 +307,45 @@ sealed partial class DocumentBBLang
 
         if (CompilerResult.GetFunctionAt(Uri, position, out CompiledFunctionDefinition? function))
         {
-            HandleDefinitionHover(function, ref definitionHover, ref docsHover);
+            definitionHover = GetFunctionHover(function, null);
+            docsHover = GetCommentDocumentation(function);
         }
         else if (CompilerResult.GetGeneralFunctionAt(Uri, position, out CompiledGeneralFunctionDefinition? generalFunction))
         {
-            HandleDefinitionHover(generalFunction, ref definitionHover, ref docsHover);
+            definitionHover = GetFunctionHover(generalFunction, null);
+            docsHover = GetCommentDocumentation(generalFunction);
         }
         else if (CompilerResult.GetOperatorAt(Uri, position, out CompiledOperatorDefinition? @operator))
         {
-            HandleDefinitionHover(@operator, ref definitionHover, ref docsHover);
+            definitionHover = GetFunctionHover(@operator, null);
+            docsHover = GetCommentDocumentation(@operator);
         }
         else if (CompilerResult.GetStructAt(Uri, position, out CompiledStruct? @struct))
         {
-            HandleDefinitionHover(@struct, ref definitionHover, ref docsHover);
-        }
-        else if (StatementExtensions.GetThingAt<StructDefinition, Token>(AST.Structs, Uri, position, out StructDefinition? @struct2))
-        {
-            HandleDefinitionHover(@struct2, ref definitionHover, ref docsHover);
+            definitionHover = GetStructHover(@struct);
+            docsHover = GetCommentDocumentation(@struct);
         }
         else if (CompilerResult.GetFieldAt(Uri, position, out CompiledField? field))
         {
-            HandleDefinitionHover(field, ref definitionHover, ref docsHover);
-        }
-        else if (GetFieldAt(Uri, position, out FieldDefinition? field2))
-        {
-            HandleDefinitionHover(field2, ref definitionHover, ref docsHover);
+            definitionHover = GetFieldHover(field);
+            docsHover = GetCommentDocumentation(field);
         }
         else if (CompilerResult.GetParameterDefinitionAt(Uri, position, out ParameterDefinition? parameter, out _) &&
                  parameter.Identifier.Position.Range.Contains(position))
         {
-            HandleDefinitionHover(parameter, ref definitionHover, ref docsHover);
+            definitionHover = GetParameterHover(parameter);
+            docsHover = GetCommentDocumentation(parameter);
+        }
+
+        else if (AST.GetStructAt(position, out StructDefinition? @struct2))
+        {
+            definitionHover = GetStructHover(@struct2);
+            docsHover = GetCommentDocumentation(@struct2);
+        }
+        else if (AST.GetFieldAt(position, out FieldDefinition? field2))
+        {
+            definitionHover = GetFieldHover(field2);
+            docsHover = GetCommentDocumentation(field2);
         }
         else if (AST.GetStatementAt(position, out Statement? statement))
         {
@@ -461,7 +374,7 @@ sealed partial class DocumentBBLang
                             base2 = new string('0', 8 - (base2.Length % 8)) + base2;
                         }
 
-                        base2 = "_" + string.Join('_', base2.Chunk(8));
+                        base2 = "_" + string.Join('_', base2.Chunk(8).Select(v => new string(v)));
                     }
 
                     string? type =
@@ -471,7 +384,7 @@ sealed partial class DocumentBBLang
 
                     numbers.Append($"{type}0b{base2}\n");
                     numbers.Append($"{type}{base10}\n");
-                    numbers.Append($"{type}0x{base16}");
+                    numbers.Append($"{type}0x{base16}\n");
                     if (_char is not null) numbers.Append($"{type}'{_char}'");
                     definitionHover = numbers.ToString();
                 }
@@ -499,7 +412,7 @@ sealed partial class DocumentBBLang
                             base2 = new string('0', 8 - (base2.Length % 8)) + base2;
                         }
 
-                        base2 = "_" + string.Join('_', base2.Chunk(8));
+                        base2 = "_" + string.Join('_', base2.Chunk(8).Select(v => new string(v)));
                     }
 
                     string? type =
@@ -509,8 +422,8 @@ sealed partial class DocumentBBLang
 
                     numbers.Append($"{type}0b{base2}\n");
                     numbers.Append($"{type}{base10}\n");
-                    numbers.Append($"{type}0x{base16}");
-                    numbers.Append($"{type}'{_char}'\n");
+                    numbers.Append($"{type}0x{base16}\n");
+                    numbers.Append($"{type}'{_char}'");
                     definitionHover = numbers.ToString();
                 }
                 else if (item is BinaryOperatorCallExpression binaryOperatorCallExpression
@@ -533,8 +446,25 @@ sealed partial class DocumentBBLang
                     typeHover = statementWithValue.CompiledType.ToString();
                 }
 
-                HandleDefinitionHover(item, ref definitionHover, ref docsHover);
-                HandleReferenceHovering(item, ref definitionHover, ref docsHover);
+                string? _definitionHover = GetDefinitionHover(item);
+                if (_definitionHover is not null)
+                {
+                    definitionHover = _definitionHover;
+                    docsHover = GetCommentDocumentation(item);
+                }
+                else if (item is IReferenceableTo referenceableTo)
+                {
+                    Logger.Trace($"{referenceableTo.Reference?.GetType().Name ?? "null"} {referenceableTo.Reference}");
+                    definitionHover = GetDefinitionHover(referenceableTo.Reference);
+                    if (referenceableTo.Reference is ILocated locatedReference)
+                    {
+                        docsHover = GetCommentDocumentation(locatedReference);
+                    }
+                }
+                else
+                {
+                    Logger.Trace($"{item.GetType().Name} {item}");
+                }
             }
         }
         else

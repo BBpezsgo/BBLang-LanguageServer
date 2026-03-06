@@ -97,6 +97,7 @@ sealed partial class DocumentBBLang
 
                         if (defined.SameAs(passed)) return true;
                         if (defined.SameAs(new PointerType(passed))) return true;
+                        if (defined.SameAs(new ReferenceType(passed))) return true;
 
                         return false;
                     });
@@ -177,7 +178,7 @@ sealed partial class DocumentBBLang
                         ActiveParameter = activeArgument < v.Parameters.Length ? activeArgument : null,
                         Parameters = new Container<ParameterInformation>(parameters.Select(p => new ParameterInformation() { Label = new ParameterInformationLabel(p), })),
                         Documentation =
-                            GetCommentDocumentation(v, v.File, out string? docs)
+                            GetCommentDocumentation(v, out string? docs)
                             ? new StringOrMarkupContent(new MarkupContent()
                             {
                                 Kind = MarkupKind.Markdown,

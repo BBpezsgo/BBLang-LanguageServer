@@ -10,21 +10,11 @@ namespace LanguageServer.DocumentManagers;
 
 sealed partial class DocumentBBLang
 {
-    bool GetCommentDocumentation(IPositioned position, Uri? file, [NotNullWhen(true)] out string? result)
-        => GetCommentDocumentation(position.Position.Range.Start, file, out result);
+    string? GetCommentDocumentation(ILocated definition)
+        => GetCommentDocumentation(definition, out string? result) ? result : null;
 
-    bool GetCommentDocumentation<TDefinition>(TDefinition definition, [NotNullWhen(true)] out string? result)
-        where TDefinition : IPositioned, IInFile
-    {
-        if (definition is IHaveAttributes withAttributes)
-        {
-            return GetCommentDocumentation(definition.Position.Union(withAttributes.Attributes).Range.Start, definition.File, out result);
-        }
-        else
-        {
-            return GetCommentDocumentation(definition.Position.Range.Start, definition.File, out result);
-        }
-    }
+    bool GetCommentDocumentation(ILocated definition, [NotNullWhen(true)] out string? result)
+        => GetCommentDocumentation(definition.Location.Position.Range.Start, definition.Location.File, out result);
 
     bool GetCommentDocumentation(SinglePosition position, Uri? file, [NotNullWhen(true)] out string? result)
     {
@@ -132,6 +122,20 @@ sealed partial class DocumentBBLang
 
                     break;
                 }
+            case TypeInstanceReference referenceType:
+                {
+                    if (!type2.Is(out ReferenceType? referenceType2)) return;
+
+                    if (referenceType.To.Position.Range.Contains(position))
+                    {
+                        type1 = referenceType.To;
+                        type2 = referenceType2.To;
+                        GetDeepestTypeInstance(ref type1, ref type2, position);
+                        return;
+                    }
+
+                    break;
+                }
             case TypeInstanceStackArray arrayType:
                 {
                     if (!type2.Is(out ArrayType? arrayType2)) return;
@@ -210,6 +214,17 @@ sealed partial class DocumentBBLang
                     if (pointerType.To.Position.Range.Contains(position))
                     {
                         type = pointerType.To;
+                        GetDeepestTypeInstance(ref type, position);
+                        return;
+                    }
+
+                    break;
+                }
+            case TypeInstanceReference referenceType:
+                {
+                    if (referenceType.To.Position.Range.Contains(position))
+                    {
+                        type = referenceType.To;
                         GetDeepestTypeInstance(ref type, position);
                         return;
                     }

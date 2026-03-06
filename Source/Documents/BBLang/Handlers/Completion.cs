@@ -141,7 +141,7 @@ sealed partial class DocumentBBLang
             }
         }
 
-        Logger.Debug($"Completion {(e.Context is null ? "null" : $"{e.Context.TriggerKind} {e.Context.TriggerCharacter}")}");
+        Logger.Trace($"Completion {(e.Context is null ? "null" : $"{e.Context.TriggerKind} {e.Context.TriggerCharacter}")}");
 
         SinglePosition p = e.Position.ToCool();
 
@@ -271,14 +271,14 @@ sealed partial class DocumentBBLang
 
         foreach (Statement statement in AST.EnumerateStatements().Where(v => v.Position.Range.Contains(p)))
         {
-            Logger.Debug($"# {statement.GetType().Name} {statement}");
+            Logger.Trace($"# {statement.GetType().Name} {statement}");
 
             if (statement is AnyCallExpression anyCallExpression
                 && anyCallExpression.Expression is FieldExpression fieldExpression1)
             {
-                Logger.Debug(fieldExpression1.Identifier.Position.Range);
-                Logger.Debug(p);
-                Logger.Debug($" -> {anyCallExpression.Expression.GetType().Name} {anyCallExpression.Expression}");
+                Logger.Trace(fieldExpression1.Identifier.Position.Range);
+                Logger.Trace(p);
+                Logger.Trace($" -> {anyCallExpression.Expression.GetType().Name} {anyCallExpression.Expression}");
             }
 
             if (statement is FieldExpression fieldExpression
@@ -291,11 +291,23 @@ sealed partial class DocumentBBLang
                     {
                         GeneralType prevType = fieldExpression.Object.CompiledType;
                         checkTypes.Add(new PointerType(prevType));
+                        checkTypes.Add(new ReferenceType(prevType));
                         checkTypes.Add(prevType);
-                        while (prevType.Is(out PointerType? pointerType2))
+                        while (true)
                         {
-                            prevType = pointerType2.To;
+                            if (prevType.Is(out PointerType? pointerType2))
+                            {
+                             prevType = pointerType2.To;
                             checkTypes.Add(prevType);
+                            }else if (prevType.Is(out ReferenceType? referenceType2))
+                            {
+                             prevType = referenceType2.To;
+                            checkTypes.Add(prevType);
+                            }
+                            else
+                            {
+                                break;
+                            }
                         }
                     }
 

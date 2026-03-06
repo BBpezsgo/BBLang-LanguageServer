@@ -100,13 +100,13 @@ sealed class OmniSharpService
 
         options.OnInitialized((server, e, result, cancellationToken) =>
         {
-            Logger.Debug($"Initialized");
+            Logger.Debug("Initialized");
             return Task.CompletedTask;
         });
 
         options.OnStarted((server, cancellationToken) =>
         {
-            Logger.Debug($"Started");
+            Logger.Debug("Started");
             return Task.CompletedTask;
         });
     }

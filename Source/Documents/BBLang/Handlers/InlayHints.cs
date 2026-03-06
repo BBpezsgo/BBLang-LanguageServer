@@ -25,6 +25,9 @@ sealed partial class DocumentBBLang
                 case TypeInstancePointer w:
                     foreach (TypeInstance x in EnumerateNestedTypeInstances(w.To)) yield return x;
                     break;
+                case TypeInstanceReference w:
+                    foreach (TypeInstance x in EnumerateNestedTypeInstances(w.To)) yield return x;
+                    break;
                 case TypeInstanceSimple w:
                     if (w.TypeArguments.HasValue) foreach (TypeInstance x in w.TypeArguments.Value.SelectMany(v => EnumerateNestedTypeInstances(v))) yield return x;
                     break;

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using LanguageCore;
 using LanguageCore.Compiler;
 using LanguageCore.Parser;
@@ -11,7 +12,35 @@ static class StatementExtensions
     public static bool GetStatementAt(this ParserResult parserResult, SinglePosition position, [NotNullWhen(true)] out Statement? statement)
         => (statement = parserResult.EnumerateStatements().LastOrDefault(statement => statement.Position.Range.Contains(position))) is not null;
 
-    public static bool GetThingAt<TThing, TIdentifier>(IEnumerable<TThing> things, Uri file, SinglePosition position, [NotNullWhen(true)] out TThing? result)
+    public static bool GetFieldAt(this ParserResult parserResult, SinglePosition position, [NotNullWhen(true)] out FieldDefinition? result)
+    {
+        foreach (FieldDefinition field in (parserResult.Structs.IsDefault ? ImmutableArray<StructDefinition>.Empty : parserResult.Structs).SelectMany(v => v.Fields))
+        {
+            if (!field.Identifier.Position.Range.Contains(position)) continue;
+
+            result = field;
+            return true;
+        }
+
+        result = null;
+        return false;
+    }
+
+    public static bool GetStructAt(this ParserResult parserResult, SinglePosition position, [NotNullWhen(true)] out StructDefinition? result)
+    {
+        foreach (StructDefinition @struct in parserResult.Structs.IsDefault ? ImmutableArray<StructDefinition>.Empty : parserResult.Structs)
+        {
+            if (!@struct.Identifier.Position.Range.Contains(position)) continue;
+
+            result = @struct;
+            return true;
+        }
+
+        result = null;
+        return false;
+    }
+
+    static bool GetThingAt<TThing, TIdentifier>(IEnumerable<TThing> things, Uri file, SinglePosition position, [NotNullWhen(true)] out TThing? result)
         where TThing : IInFile, IIdentifiable<TIdentifier>
         where TIdentifier : IPositioned
     {

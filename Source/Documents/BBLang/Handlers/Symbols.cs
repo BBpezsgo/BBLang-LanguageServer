@@ -1,8 +1,6 @@
 using LanguageCore;
-using LanguageCore.Compiler;
 using LanguageCore.Parser;
 using LanguageCore.Parser.Statements;
-using OmniSharpLocation = OmniSharp.Extensions.LanguageServer.Protocol.Models.Location;
 
 namespace LanguageServer.DocumentManagers;
 
