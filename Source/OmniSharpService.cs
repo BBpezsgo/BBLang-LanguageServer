@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
 using LanguageServer.Handlers;
@@ -70,7 +70,7 @@ sealed class OmniSharpService
            .WithHandler<SemanticTokensHandler>()
            .WithHandler<SignatureHelpHandler>()
            .WithHandler<TextDocumentSyncHandler>()
-           //.WithHandler<NotebookDocumentSyncHandler>()
+           .WithHandler<NotebookDocumentSyncHandler>()
            .WithHandler<TypeDefinitionHandler>()
            .WithHandler<InlayHintsHandler>()
         ;
@@ -91,6 +91,7 @@ sealed class OmniSharpService
                         Full = new Supports<SemanticTokensCapabilityRequestFull?>(true),
                         Range = new Supports<SemanticTokensCapabilityRequestRange?>(false),
                     },
+                    AugmentsSyntaxTokens = true,
                     ServerCancelSupport = false,
                 };
             }
