@@ -233,6 +233,20 @@ partial class DocumentBBLang
                         Range = diagnosticWithPosition.Position.ToOmniSharp(),
                         Message = GetFullMessage(diagnosticWithPosition, 0),
                         Source = diagnosticWithPosition.File.ToString(),
+                        RelatedInformation = diagnosticWithPosition.RelatedInformation
+                            .OfType<DiagnosticRelatedInformationAt>()
+                            .Select(v => new OmniSharp.Extensions.LanguageServer.Protocol.Models.DiagnosticRelatedInformation()
+                            {
+                                Location = v.Location.ToOmniSharp(),
+                                Message = v.Message,
+                            })
+                            .ToArray(),
+                        Tags = diagnosticWithPosition.Tag switch
+                        {
+                            LanguageCore.DiagnosticTag.None => null,
+                            LanguageCore.DiagnosticTag.Unnecessary => new(OmniSharp.Extensions.LanguageServer.Protocol.Models.DiagnosticTag.Unnecessary),
+                            _ => null,
+                        },
                     });
 
                     foreach (Diagnostic item in diagnostic.SubErrors)
@@ -255,6 +269,9 @@ partial class DocumentBBLang
 
             foreach (DiagnosticAt diagnostic in diagnostics.Diagnostics)
             {
+                if (diagnostic.Level == DiagnosticsLevel.OptimizationNotice) continue;
+                if (diagnostic.Level == DiagnosticsLevel.FailedOptimization) continue;
+
                 CompileDiagnostic(diagnostic, diagnosticsPerFile);
             }
 
