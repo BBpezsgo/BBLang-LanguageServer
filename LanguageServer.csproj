@@ -1,9 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <AssemblyName>bblang_languageserver</AssemblyName>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net11.0</TargetFramework>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -21,8 +26,6 @@
 
   <PropertyGroup>
     <Nullable>enable</Nullable>
-    <AnalysisLevel>preview-all</AnalysisLevel>
-    <WarningLevel>9999</WarningLevel>
   </PropertyGroup>
 
   <ItemGroup>
