@@ -12,7 +12,7 @@ sealed partial class DocumentBBLang
 {
     public override async Task<SignatureHelp?> SignatureHelp(SignatureHelpParams e, CancellationToken cancellationToken)
     {
-        await AwaitForCompilation(Version ?? 0, cancellationToken).ConfigureAwait(false);
+        await AwaitForCompilation(Version, cancellationToken).ConfigureAwait(false);
 
         SinglePosition position = e.Position.ToCool();
 

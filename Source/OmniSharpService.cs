@@ -20,21 +20,13 @@ sealed class OmniSharpService
         Documents = new Documents();
     }
 
-    public async Task CreateAsync()
+    public async Task RunAsync()
     {
         Server = await OmniSharp.Extensions.LanguageServer.Server.LanguageServer.From(Configure).ConfigureAwait(false);
 
         Logger.Debug("Created");
 
         await Server.WaitForExit.ConfigureAwait(false);
-    }
-
-    void ConfigureServices(IServiceCollection services)
-    {
-        services.AddSingleton(new ConfigurationItem()
-        {
-            Section = "terminal",
-        });
     }
 
     void Configure(LanguageServerOptions options)
@@ -53,24 +45,23 @@ sealed class OmniSharpService
            );
 
         options
-           .WithServices(x => x.AddLogging(b => b.SetMinimumLevel(LogLevel.Trace)))
-           .WithServices(ConfigureServices);
+           .WithServices(x => x.AddLogging(b => b.SetMinimumLevel(LogLevel.Trace)));
 
         options
            .WithHandler<CodeLensHandler>()
            .WithHandler<CompletionHandler>()
-           //.WithHandler<DeclarationHandler>()
+           .WithHandler<DeclarationHandler>()
            .WithHandler<DefinitionHandler>()
            .WithHandler<DidChangeConfigurationHandler>()
-           //.WithHandler<DocumentHighlightHandler>()
+           .WithHandler<DocumentHighlightHandler>()
            .WithHandler<DocumentSymbolHandler>()
            .WithHandler<HoverHandler>()
-           //.WithHandler<ImplementationHandler>()
+           .WithHandler<ImplementationHandler>()
            .WithHandler<ReferencesHandler>()
            .WithHandler<SemanticTokensHandler>()
            .WithHandler<SignatureHelpHandler>()
            .WithHandler<TextDocumentSyncHandler>()
-           .WithHandler<NotebookDocumentSyncHandler>()
+           //.WithHandler<NotebookDocumentSyncHandler>()
            .WithHandler<TypeDefinitionHandler>()
            .WithHandler<InlayHintsHandler>()
         ;
@@ -99,15 +90,15 @@ sealed class OmniSharpService
             return Task.CompletedTask;
         });
 
-        options.OnInitialized((server, e, result, cancellationToken) =>
+        options.OnStarted((_, _) =>
         {
-            Logger.Debug("Initialized");
+            Logger.Debug("Started");
             return Task.CompletedTask;
         });
 
-        options.OnStarted((server, cancellationToken) =>
+        options.OnInitialized((_, _, _, _) =>
         {
-            Logger.Debug("Started");
+            Logger.Debug("Initialized");
             return Task.CompletedTask;
         });
     }

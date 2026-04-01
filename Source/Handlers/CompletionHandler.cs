@@ -7,7 +7,11 @@ sealed class CompletionHandler : ICompletionHandler
         Logger.Debug($"[Handler] Completion ({request.TextDocument}:{request.Position.ToStringMin()}) ({request.Context})");
 
         if (OmniSharpService.Instance?.Server == null) return new CompletionList();
-        if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument.Uri, out DocumentBase? document)) return new CompletionList();
+        if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument.Uri, out DocumentBase? document))
+        {
+            Logger.Warn($"Document \"{request.TextDocument}\" not found");
+            return new CompletionList();
+        }
 
         try
         {

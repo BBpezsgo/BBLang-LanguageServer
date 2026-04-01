@@ -7,7 +7,7 @@ sealed partial class DocumentBBLang
 {
     public override async Task<IEnumerable<CodeLens>?> CodeLens(CodeLensParams e, CancellationToken cancellationToken)
     {
-        await AwaitForCompilation(Version ?? 0, cancellationToken).ConfigureAwait(false);
+        await AwaitForCompilation(Version, cancellationToken).ConfigureAwait(false);
 
         List<CodeLens> result = new();
 

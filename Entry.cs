@@ -9,7 +9,7 @@ static class Program
         try
         {
             OmniSharpService service = new();
-            await service.CreateAsync().ConfigureAwait(false);
+            await service.RunAsync().ConfigureAwait(false);
             return 0;
         }
         catch (AggregateException ex)

@@ -188,7 +188,7 @@ sealed class Documents : ISourceProviderSync, ISourceQueryProvider, IVersionProv
         {
             if (document.Uri != uri) continue;
             if (document.Content is null || !document.Version.HasValue) return false;
-            version = (ulong)document.Version.Value;
+            version = document.Version.Value.ToULong();
         }
 
         return false;

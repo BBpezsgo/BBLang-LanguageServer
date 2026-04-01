@@ -1,6 +1,9 @@
+using System.Diagnostics;
+using LanguageCore;
+
 namespace LanguageServer;
 
-static class Logger
+public class Logger : ILogger
 {
     static string FormatMessage(object? message) => message switch
     {
@@ -20,5 +23,27 @@ static class Logger
     public static void Info(object? message) => Info(FormatMessage(message));
     public static void Debug(object? message) => Debug(FormatMessage(message));
     public static void Trace(object? message) => Trace(FormatMessage(message));
-}
 
+    public void Log(LogType level, string message)
+    {
+        switch (level)
+        {
+            case LogType.Normal:
+                OmniSharpService.Instance?.Server?.Window.SendNotification(new LogMessageParams { Type = (MessageType)3, Message = message });
+                break;
+            case LogType.Warning:
+                OmniSharpService.Instance?.Server?.Window.SendNotification(new LogMessageParams { Type = (MessageType)2, Message = message });
+                break;
+            case LogType.Error:
+                OmniSharpService.Instance?.Server?.Window.SendNotification(new LogMessageParams { Type = (MessageType)1, Message = message });
+                break;
+            case LogType.Debug:
+                OmniSharpService.Instance?.Server?.Window.SendNotification(new LogMessageParams { Type = (MessageType)5, Message = message });
+                break;
+            default:
+                throw new UnreachableException();
+        }
+    }
+    public IDisposableProgress<float> Progress(LogType level) => VoidProgress<float>.Instance;
+    public IDisposableProgress<string> Label(LogType level) => VoidProgress<string>.Instance;
+}

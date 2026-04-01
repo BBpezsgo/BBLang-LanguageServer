@@ -8,7 +8,7 @@ sealed partial class DocumentBBLang
 {
     public override async Task<LocationOrLocationLinks?> GotoTypeDefinition(TypeDefinitionParams e, CancellationToken cancellationToken)
     {
-        await AwaitForCompilation(Version ?? 0, cancellationToken).ConfigureAwait(false);
+        await AwaitForCompilation(Version, cancellationToken).ConfigureAwait(false);
 
         List<LocationOrLocationLink> links = new();
 

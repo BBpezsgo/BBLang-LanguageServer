@@ -6,7 +6,7 @@ abstract class DocumentBase
     public DocumentUri DocumentUri { get; private set; }
     public string? Content { get; private set; }
     public string LanguageId { get; private set; }
-    public int? Version { get; private set; }
+    public DocumentVersion? Version { get; private set; }
     public string Path
     {
         get
@@ -34,7 +34,7 @@ abstract class DocumentBase
 
         DocumentUri = e.TextDocument.Uri;
         LanguageId = e.TextDocument.Uri.GetExtension();
-        Version = e.TextDocument.Version;
+        Version = e.TextDocument.Version.HasValue ? DocumentVersion.Now(e.TextDocument.Version.Value) : null;
     }
 
     public virtual void OnChanged(DidChangeTextDocumentParams e)
@@ -62,7 +62,7 @@ abstract class DocumentBase
 
         DocumentUri = e.TextDocument.Uri;
         LanguageId = e.TextDocument.Uri.GetExtension();
-        Version = e.TextDocument.Version;
+        Version = e.TextDocument.Version.HasValue ? DocumentVersion.Now(e.TextDocument.Version.Value) : null;
     }
 
     public virtual void OnSaved(DidSaveTextDocumentParams e)

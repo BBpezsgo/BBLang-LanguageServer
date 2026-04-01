@@ -6,7 +6,11 @@ sealed class SemanticTokensHandler : SemanticTokensHandlerBase
     {
         Logger.Debug($"[Handler] SemanticTokens ({identifier.TextDocument})");
         if (OmniSharpService.Instance?.Server == null) return Task.CompletedTask;
-        if (!OmniSharpService.Instance.Documents.TryGet(identifier.TextDocument.Uri, out DocumentBase? document)) return Task.CompletedTask;
+        if (!OmniSharpService.Instance.Documents.TryGet(identifier.TextDocument.Uri, out DocumentBase? document))
+        {
+            Logger.Warn($"Document \"{identifier.TextDocument}\" not found");
+            return Task.CompletedTask;
+        }
 
         return document.GetSemanticTokens(builder, identifier, cancellationToken);
     }

@@ -11,7 +11,7 @@ sealed partial class DocumentBBLang
 {
     public override async Task<IEnumerable<CompletionItem>?> Completion(CompletionParams e, CancellationToken cancellationToken)
     {
-        await AwaitForCompilation(Version ?? 0, cancellationToken).ConfigureAwait(false);
+        await AwaitForCompilation(Version, cancellationToken).ConfigureAwait(false);
 
         List<CompletionItem> result = new();
 

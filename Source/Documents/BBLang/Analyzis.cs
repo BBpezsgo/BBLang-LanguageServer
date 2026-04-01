@@ -20,11 +20,12 @@ partial class DocumentBBLang
     public CompilerSettings CompilerSettings;
 
     Task? CompilationTask;
-    int CompiledVersion;
-    int CurrentlyCompilingVersion;
-    int DesiredCompiledVersion;
+    DocumentVersion CompiledVersion;
+    DocumentVersion CurrentlyCompilingVersion;
+    DocumentVersion DesiredCompiledVersion;
 
-    void RequestCompilation(int version)
+    void RequestCompilation(DocumentVersion? version) => RequestCompilation(version ?? DocumentVersion.Zero(0));
+    void RequestCompilation(DocumentVersion version)
     {
         if (CompilationTask is not null && !CompilationTask.IsCompleted) return;
         if (CompiledVersion == version) return;
@@ -49,7 +50,8 @@ partial class DocumentBBLang
         });
     }
 
-    Task AwaitForCompilation(int version, CancellationToken cancellationToken)
+    Task AwaitForCompilation(DocumentVersion? version, CancellationToken cancellationToken) => AwaitForCompilation(version ?? DocumentVersion.Zero(0), cancellationToken);
+    Task AwaitForCompilation(DocumentVersion version, CancellationToken cancellationToken)
     {
         RequestCompilation(version);
 #pragma warning disable VSTHRD110 // Observe result of async calls
@@ -59,9 +61,9 @@ partial class DocumentBBLang
 
     async Task CompileAsync()
     {
-        CurrentlyCompilingVersion = Version ?? 0;
+        CurrentlyCompilingVersion = Version ?? DocumentVersion.Zero(0);
 
-        Logger.Debug($"Validating {CurrentlyCompilingVersion} ...");
+        Logger.Debug($"Validating {CurrentlyCompilingVersion}");
 
         OmniSharpService.Instance?.Server?.SendNotification<CompilerStatusNotificationArgs>("bblang/compiler/status", new()
         {
@@ -77,16 +79,23 @@ partial class DocumentBBLang
             BBLangProject? project = null;
             Uri? projectRoot = null;
 
-            if (ConfigurationManager.Search(Uri, Documents, out Uri? configurationPath, out string? configurationContent))
+            Logger.Debug($"  Compiling configuraton");
+
+            if (ConfigurationManager.Search(Uri, Documents, out Uri? configurationPath, out _))
             {
                 projectRoot = new(configurationPath, ".");
-                config = Configuration.Parse(configurationPath, configurationContent, diagnostics);
+                Logger.Trace($"    Parsing configuration `{configurationPath}`");
+                config = Configuration.Parse(configurationPath, diagnostics, new Logger());
+                Logger.Trace($"    Configuation parsed");
+
                 if (BBLangProject.Projects.TryGetValue(configurationPath, out project))
                 {
                     project.Configuration = config;
                 }
                 else
                 {
+                    Logger.Debug($"  3");
+
                     BBLangProject.Projects[configurationPath] = project = new BBLangProject()
                     {
                         Configuration = config,
@@ -100,6 +109,8 @@ partial class DocumentBBLang
                         }
                     }
 
+            Logger.Debug($"  4");
+
                     foreach (DocumentBase item in Documents.OpenedDocuments)
                     {
                         if (projectRoot.IsBaseOf(item.Uri))
@@ -107,11 +118,15 @@ partial class DocumentBBLang
                             project.Files.Add(item.Uri);
                         }
                     }
+            Logger.Debug($"  5");
+
                 }
             }
 
             if (project is not null)
             {
+            Logger.Debug($"  6a");
+
                 OmniSharpService.Instance?.Server?.SendNotification<ProjectStatusNotificationArgs>("bblang/project/status", new()
                 {
                     IsProject = true,
@@ -122,12 +137,16 @@ partial class DocumentBBLang
             }
             else
             {
+            Logger.Debug($"  6b");
+
                 OmniSharpService.Instance?.Server?.SendNotification<ProjectStatusNotificationArgs>("bblang/project/status", new()
                 {
                     IsProject = false,
                     ContextFile = Uri.ToString(),
                 });
             }
+
+            Logger.Debug($"  7");
 
             diagnostics.Clear();
 
@@ -156,10 +175,15 @@ partial class DocumentBBLang
             HashSet<Uri> compiledFiles;
             if (DocumentUri.Scheme == "file")
             {
+            Logger.Debug($"  8");
+
                 CompilerResult compilerResult = CompilerResult.MakeEmpty(Uri);
                 try
                 {
-                    compilerResult = StatementCompiler.CompileFiles((project is null ? Documents.OpenedDocuments.Select(v => v.Uri.ToString()) : project.Files.Select(v => v.ToString())).ToArray(), compilerSettings, diagnostics);
+                    var files = (project is null ? Documents.OpenedDocuments.Select(v => v.Uri.ToString()) : project.Files.Select(v => v.ToString())).ToArray();
+                    Logger.Debug($"  Compiling {string.Join(", ", files)}");
+                    compilerResult = StatementCompiler.CompileFiles(files, compilerSettings, diagnostics);
+                    Logger.Debug($"  Compiled");
                 }
                 catch (LanguageExceptionAt languageException)
                 {
@@ -286,7 +310,7 @@ partial class DocumentBBLang
                 {
                     Uri = file,
                     Diagnostics = fileDiagnostics,
-                    Version = Documents.TryGet(file, out DocumentBase? document) ? document.Version : null,
+                    Version = Documents.TryGet(file, out DocumentBase? document) ? document.Version?.Version : null,
                 });
             }
         }

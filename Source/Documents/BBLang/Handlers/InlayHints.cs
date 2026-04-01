@@ -8,7 +8,7 @@ sealed partial class DocumentBBLang
 {
     public override async Task<IEnumerable<InlayHint>?> InlayHints(InlayHintParams request, CancellationToken cancellationToken)
     {
-        await AwaitForCompilation(Version ?? 0, cancellationToken).ConfigureAwait(false);
+        await AwaitForCompilation(Version, cancellationToken).ConfigureAwait(false);
 
         MutableRange<SinglePosition> range = request.Range.ToCool();
         List<InlayHint> result = new();
