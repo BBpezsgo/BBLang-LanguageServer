@@ -1,10 +1,10 @@
 namespace LanguageServer.Handlers;
 
-sealed class InlineValuesHandler : IInlineValuesHandler
+sealed class CodeActionHandler : ICodeActionHandler
 {
-    public async Task<Container<InlineValueBase>?> Handle(InlineValueParams request, CancellationToken cancellationToken)
+    public async Task<CommandOrCodeActionContainer?> Handle(CodeActionParams request, CancellationToken cancellationToken)
     {
-        Logger.Debug($"[Handler] InlineValues ({request.TextDocument}:{request.Range})");
+        Logger.Debug($"[Handler] CodeAction ({request.TextDocument})");
 
         if (OmniSharpService.Instance?.Server == null) return null;
         if (!OmniSharpService.Instance.Documents.TryGet(request.TextDocument.Uri, out DocumentBase? document))
@@ -15,8 +15,7 @@ sealed class InlineValuesHandler : IInlineValuesHandler
 
         try
         {
-            IEnumerable<InlineValueBase>? result = await document.InlineValues(request, cancellationToken).ConfigureAwait(false);
-            return result is null ? null : new(result);
+            return new CommandOrCodeActionContainer(await document.CodeAction(request, cancellationToken).ConfigureAwait(false) ?? Enumerable.Empty<CommandOrCodeAction>());
         }
         catch (ServiceException error)
         {
@@ -25,8 +24,10 @@ sealed class InlineValuesHandler : IInlineValuesHandler
         }
     }
 
-    public InlineValueRegistrationOptions GetRegistrationOptions(InlineValueClientCapabilities capability, ClientCapabilities clientCapabilities) => new()
+    public CodeActionRegistrationOptions GetRegistrationOptions(CodeActionCapability capability, ClientCapabilities clientCapabilities) => new()
     {
         DocumentSelector = TextDocumentSelector.ForLanguage(LanguageCore.LanguageConstants.LanguageId),
+        ResolveProvider = false,
+        CodeActionKinds = new Container<CodeActionKind>(CodeActionKind.Defaults),
     };
 }

@@ -48,6 +48,7 @@ sealed class OmniSharpService
            .WithServices(x => x.AddLogging(b => b.SetMinimumLevel(LogLevel.Trace)));
 
         options
+           .WithHandler<CodeActionHandler>()
            .WithHandler<CodeLensHandler>()
            .WithHandler<CompletionHandler>()
            .WithHandler<DeclarationHandler>()
@@ -57,13 +58,14 @@ sealed class OmniSharpService
            .WithHandler<DocumentSymbolHandler>()
            .WithHandler<HoverHandler>()
            .WithHandler<ImplementationHandler>()
+           .WithHandler<InlayHintsHandler>()
            .WithHandler<ReferencesHandler>()
            .WithHandler<SemanticTokensHandler>()
            .WithHandler<SignatureHelpHandler>()
+           .WithHandler<TypeDefinitionHandler>()
+
            .WithHandler<TextDocumentSyncHandler>()
            //.WithHandler<NotebookDocumentSyncHandler>()
-           .WithHandler<TypeDefinitionHandler>()
-           .WithHandler<InlayHintsHandler>()
         ;
 
         options.OnInitialize((server, request, cancellationToken) =>
