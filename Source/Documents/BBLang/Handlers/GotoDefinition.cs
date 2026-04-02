@@ -18,7 +18,7 @@ sealed partial class DocumentBBLang
 
         if (reference is StatementCompiler.FunctionQueryResult<CompiledFunctionDefinition> function)
         {
-            reference = function.OriginalFunction;
+            reference = function.Function;
         }
 
         Uri? file = reference switch
